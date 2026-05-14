@@ -7,11 +7,154 @@ import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-
 import { createPhysics } from './fps/physics.js';
 import { createTankGame }   from './tankGame.js';
 import { createFlightGame } from './flightGame.js';
+import { createFPSGame }    from './fpsGame.js';
+import { createPeopleGame } from './peopleGame.js';
 import { generateCollision, isWebGPUAvailable } from './collision/client-collider.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
+
+// ─── PRESET PERSISTENCE ──────────────────────────────────────────────────────
+// Settings only (floor Y, spawn XZ, URL, mode) stored in localStorage.
+// No binary data — file-based splats ask the user to re-select the file
+// when loading a preset, then apply all saved settings automatically.
+
+const _PRESET_LS  = i => `sp_preset_${i}`;
+const NUM_PRESETS = 3;
+
+let currentSplatMeta = null; // { name, url, isFile } — set in loadSplat
+let _presetOverride  = null; // { floorY, spawnX, spawnZ, spawnRadius, gameMode }
+
+function _getPreset(i) {
+  try { return JSON.parse(localStorage.getItem(_PRESET_LS(i))); } catch { return null; }
+}
+
+function _timeAgo(ts) {
+  if (!ts) return '';
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60)    return 'just now';
+  if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+}
+
+function _saveToPreset(slot) {
+  if (!currentSplatMeta) return;
+  const data = {
+    name:        currentSplatMeta.name,
+    url:         currentSplatMeta.isFile ? null : currentSplatMeta.url,
+    isFile:      currentSplatMeta.isFile,
+    floorY:      configFloorY,
+    spawnX:      configSpawnX,
+    spawnZ:      configSpawnZ,
+    spawnRadius: configSpawnRadius,
+    gameMode:    selectedMode,
+    savedAt:     Date.now(),
+  };
+  localStorage.setItem(_PRESET_LS(slot), JSON.stringify(data));
+  _renderPresets();
+  _renderPresetBar();
+}
+
+function _launchPreset(slot) {
+  const data = _getPreset(slot);
+  if (!data) return;
+  _presetOverride = {
+    floorY:      data.floorY,
+    spawnX:      data.spawnX,
+    spawnZ:      data.spawnZ,
+    spawnRadius: data.spawnRadius,
+    gameMode:    data.gameMode,
+  };
+  if (data.url) {
+    // Remote URL — load directly with saved settings
+    loadSplat(data.url, data.name);
+  } else {
+    // Local file preset — settings queued, ask user to re-select the file
+    setSplashStatus(`Preset ${slot + 1}: select "${data.name}" to apply settings`);
+    if (splashEl) { splashEl.style.display = 'flex'; splashEl.style.opacity = '1'; }
+    document.getElementById('ply-upload')?.click();
+  }
+}
+
+function _clearPreset(slot) {
+  localStorage.removeItem(_PRESET_LS(slot));
+  _renderPresets();
+  _renderPresetBar();
+}
+
+// Splash-screen preset grid (large cards)
+function _renderPresets() {
+  const grid = document.getElementById('preset-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (let i = 0; i < NUM_PRESETS; i++) {
+    const saved = _getPreset(i);
+    const card  = document.createElement('div');
+    card.className = `preset-card${saved ? ' filled' : ''}`;
+    if (saved) {
+      const shortName = saved.name.length > 11 ? saved.name.slice(0, 9) + '…' : saved.name;
+      card.innerHTML = `
+        <span class="preset-num">${i + 1} · ${saved.gameMode ?? 'tank'}</span>
+        <span class="preset-label">${shortName}</span>
+        <span class="preset-meta">${_timeAgo(saved.savedAt)}</span>
+        <button class="preset-clear" title="Clear">×</button>`;
+      card.addEventListener('click', e => { if (!e.target.closest('.preset-clear')) _launchPreset(i); });
+      card.querySelector('.preset-clear').addEventListener('click', e => {
+        e.stopPropagation();
+        if (confirm(`Clear Preset ${i + 1}?`)) _clearPreset(i);
+      });
+    } else {
+      card.innerHTML = `<span class="preset-num">${i + 1}</span><span class="preset-label" style="color:#475569">Empty</span>`;
+    }
+    grid.appendChild(card);
+  }
+}
+
+// In-game preset bar (compact rows: num | name | Load | Save)
+function _renderPresetBar() {
+  const bar = document.getElementById('preset-bar');
+  if (!bar) return;
+  // Keep the label div, replace the rows
+  const label = bar.querySelector('.pb-label');
+  bar.innerHTML = '';
+  if (label) bar.appendChild(label);
+  else {
+    const lbl = document.createElement('div');
+    lbl.className = 'pb-label';
+    lbl.textContent = 'Presets';
+    bar.appendChild(lbl);
+  }
+  for (let i = 0; i < NUM_PRESETS; i++) {
+    const saved  = _getPreset(i);
+    const row    = document.createElement('div');
+    row.className = 'pb-row';
+    const shortName = saved ? (saved.name.length > 12 ? saved.name.slice(0, 10) + '…' : saved.name) : 'Empty';
+    row.innerHTML = `
+      <span class="pb-num">${i + 1}</span>
+      <span class="pb-name${saved ? ' filled' : ''}">${shortName}</span>
+      <button class="pb-load"${saved ? '' : ' disabled'}>▶</button>
+      <button class="pb-save" title="Save current state to Preset ${i + 1}">💾</button>`;
+    if (saved) row.querySelector('.pb-load').addEventListener('click', () => _launchPreset(i));
+    row.querySelector('.pb-save').addEventListener('click', () => {
+      _saveToPreset(i);
+      const btn = row.querySelector('.pb-save');
+      btn.textContent = '✓';
+      setTimeout(() => { btn.textContent = '💾'; _renderPresetBar(); }, 1500);
+    });
+    bar.appendChild(row);
+  }
+}
+
+function _showPresetBar(visible) {
+  const bar = document.getElementById('preset-bar');
+  if (bar) bar.style.display = visible ? 'flex' : 'none';
+}
+
+// Initialise on load
+_renderPresets();
+_renderPresetBar();
 
 // ─── Phases: idle → loading → orbit → explore → playing ─────────────────────
 let phase = 'idle';
@@ -78,8 +221,13 @@ const gltfLoader      = new GLTFLoader();
 // Floor configure state
 let configFloorY      = 0;
 let configBox         = null;
-let configFloorGrid   = null;  // THREE.Group — grid lines at floor Y
-let configFloorHandle = null;  // THREE.Group — ↕ drag arrow
+let configFloorGrid   = null;
+let configFloorHandle = null;
+// Spawn area state
+let configSpawnX      = 0;
+let configSpawnZ      = 0;
+let configSpawnRadius = 10;
+let _spawnGroup       = null;  // THREE.Group — disc + ring on floor
 
 // ─── UI refs ──────────────────────────────────────────────────────────────────
 const splashEl           = document.getElementById('splash');
@@ -129,16 +277,21 @@ function _toggleColliderDebug() {
 document.getElementById('view-collider-btn')?.addEventListener('click', _toggleColliderDebug);
 
 // ─── Game mode selection ──────────────────────────────────────────────────────
-document.getElementById('mode-tank')?.addEventListener('click', () => {
-  selectedMode = 'tank';
-  document.getElementById('mode-tank')?.classList.add('active');
-  document.getElementById('mode-flight')?.classList.remove('active');
-});
-document.getElementById('mode-flight')?.addEventListener('click', () => {
-  selectedMode = 'flight';
-  document.getElementById('mode-flight')?.classList.add('active');
-  document.getElementById('mode-tank')?.classList.remove('active');
-});
+const _modeIds = ['mode-fps', 'mode-tank', 'mode-flight', 'mode-people'];
+const _modeMap  = { 'mode-fps': 'fps', 'mode-tank': 'tank', 'mode-flight': 'flight', 'mode-people': 'people' };
+
+function _selectMode(id) {
+  selectedMode = _modeMap[id];
+  _modeIds.forEach(m => document.getElementById(m)?.classList.toggle('active', m === id));
+  // Update the FPS hint action text for modes that use the FPS explore phase
+  const hintEl = document.getElementById('fps-hint-action');
+  if (hintEl) {
+    const labels = { fps: '<b>Enter</b> or <b>Confirm</b> to start shooting', tank: '<b>Enter</b> or <b>Confirm</b> to start battle', flight: '<b>Enter</b> or <b>Confirm</b> to take off', people: '<b>Enter</b> or <b>Confirm</b> to place crowd' };
+    hintEl.innerHTML = labels[selectedMode] ?? '<b>Enter</b> or <b>Confirm</b> to start';
+  }
+}
+
+_modeIds.forEach(id => document.getElementById(id)?.addEventListener('click', () => _selectMode(id)));
 
 function _updateFloorValDisplay() {
   const el = document.getElementById('floor-val');
@@ -200,7 +353,98 @@ function _updateFloorHandle() {
 function _disposeFloorVisuals() {
   if (configFloorGrid)  { scene.remove(configFloorGrid);  configFloorGrid = null; }
   if (configFloorHandle){ scene.remove(configFloorHandle); configFloorHandle = null; }
+  if (_spawnGroup)      { scene.remove(_spawnGroup);       _spawnGroup = null; }
 }
+
+// ─── Spawn area disc ──────────────────────────────────────────────────────────
+function _updateSpawnSphere() {
+  if (!_spawnGroup) {
+    const discMat = new THREE.MeshBasicMaterial({
+      color: 0xfbbf24, transparent: true, opacity: 0.13,
+      side: THREE.DoubleSide, depthWrite: false,
+    });
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: 0xfbbf24, transparent: true, opacity: 0.75,
+      side: THREE.DoubleSide, depthWrite: false,
+    });
+    const disc = new THREE.Mesh(new THREE.CircleGeometry(1, 64), discMat);
+    disc.rotation.x = -Math.PI / 2;
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.96, 1, 64), ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    // Small centre dot so user knows the exact position
+    const dot = new THREE.Mesh(new THREE.CircleGeometry(0.04, 16), ringMat.clone());
+    dot.rotation.x = -Math.PI / 2;
+    _spawnGroup = new THREE.Group();
+    _spawnGroup.add(disc, ring, dot);
+    scene.add(_spawnGroup);
+  }
+  _spawnGroup.position.set(configSpawnX, configFloorY + 0.03, configSpawnZ);
+  _spawnGroup.scale.set(configSpawnRadius, 1, configSpawnRadius);
+
+  // Sync UI
+  const rEl = document.getElementById('spawn-r-val');
+  if (rEl) rEl.textContent = `${configSpawnRadius.toFixed(1)}m`;
+  const xEl = document.getElementById('spawn-x-slider');
+  if (xEl) xEl.value = configSpawnX;
+  const xVEl = document.getElementById('spawn-x-val');
+  if (xVEl) xVEl.textContent = configSpawnX.toFixed(1);
+  const zEl = document.getElementById('spawn-z-slider');
+  if (zEl) zEl.value = configSpawnZ;
+  const zVEl = document.getElementById('spawn-z-val');
+  if (zVEl) zVEl.textContent = configSpawnZ.toFixed(1);
+}
+
+// Radius +/- buttons
+const _SPAWN_R_STEP = 0.5;
+let _spawnRTimer = null;
+const _startSpawnR = (d) => {
+  configSpawnRadius = Math.max(1, configSpawnRadius + d);
+  _updateSpawnSphere();
+  _spawnRTimer = setInterval(() => {
+    configSpawnRadius = Math.max(1, configSpawnRadius + d);
+    _updateSpawnSphere();
+  }, 80);
+};
+const _stopSpawnR = () => { clearInterval(_spawnRTimer); _spawnRTimer = null; };
+document.getElementById('spawn-r-dn')?.addEventListener('mousedown', () => _startSpawnR(-_SPAWN_R_STEP));
+document.getElementById('spawn-r-up')?.addEventListener('mousedown', () => _startSpawnR(+_SPAWN_R_STEP));
+document.addEventListener('mouseup', _stopSpawnR);
+
+// X / Z sliders
+document.getElementById('spawn-x-slider')?.addEventListener('input', (e) => {
+  configSpawnX = parseFloat(e.target.value); _updateSpawnSphere();
+});
+document.getElementById('spawn-z-slider')?.addEventListener('input', (e) => {
+  configSpawnZ = parseFloat(e.target.value); _updateSpawnSphere();
+});
+
+// Click-on-floor to reposition centre (orbit phase only)
+const _spawnFloorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const _spawnHitPt      = new THREE.Vector3();
+const _spawnRc         = new THREE.Raycaster();
+const _spawnNdc        = new THREE.Vector2();
+renderer.domElement.addEventListener('click', (e) => {
+  if (phase !== 'orbit') return;
+  // Don't intercept clicks that were a floor-handle drag
+  if (_isDraggingFloor) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  _spawnNdc.set(
+    ((e.clientX - rect.left) / rect.width)  * 2 - 1,
+    -((e.clientY - rect.top)  / rect.height) * 2 + 1,
+  );
+  _spawnFloorPlane.constant = -configFloorY;
+  _spawnRc.setFromCamera(_spawnNdc, camera);
+  if (_spawnRc.ray.intersectPlane(_spawnFloorPlane, _spawnHitPt)) {
+    configSpawnX = _spawnHitPt.x;
+    configSpawnZ = _spawnHitPt.z;
+    // Clamp to bbox if available
+    if (configBox) {
+      configSpawnX = THREE.MathUtils.clamp(configSpawnX, configBox.min.x, configBox.max.x);
+      configSpawnZ = THREE.MathUtils.clamp(configSpawnZ, configBox.min.z, configBox.max.z);
+    }
+    _updateSpawnSphere();
+  }
+});
 
 // ─── Floor Y adjustment ───────────────────────────────────────────────────────
 const FLOOR_STEP = 0.05;
@@ -213,6 +457,7 @@ function setFloor(y) {
   _updateConfigFloorGrid();
   _updateFloorHandle();
   _updateFloorValDisplay();
+  if (_spawnGroup) _updateSpawnSphere(); // keep disc on floor
   physics.rebuildCollision();
 }
 
@@ -654,7 +899,14 @@ function loadSplat(url, name, file = null) {
   activeGame?.dispose(); activeGame = null;
   _pendingSplatFile = file;
   _disposeFloorVisuals();
+  _showPresetBar(false);
   const session = ++_loadSession;
+
+  currentSplatMeta = {
+    name:   (name || 'splat').replace(/\.(ply|sog)$/i, ''),
+    url:    file ? null : url,   // null for local file uploads (blob: URLs don't persist)
+    isFile: !!file,
+  };
 
   phase = 'loading';
   setSplashStatus(`Loading ${name}…`);
@@ -691,30 +943,60 @@ function loadSplat(url, name, file = null) {
         controls.target.copy(center);
         controls.update();
 
-        // Enter configure/orbit phase — shows floor grid + handle
+        // Read PLY buffer early so it's available in the _presetOverride path too
+        const isSog = name?.toLowerCase().endsWith('.sog');
+        let plyBuffer = null;
+        if (!isSog && file) {
+          setFloorStatus('⚙ Reading PLY…');
+          plyBuffer = await file.arrayBuffer();
+        }
+        const plyUrlOrBuffer = plyBuffer ?? url;
+        const isBuffer = plyBuffer !== null;
+
+        // Enter configure/orbit phase — shows floor grid + handle + spawn disc
         _fadeOut(splashEl, () => {
+          // ── PRESET OVERRIDE: skip floor setup, launch game directly ────────
+          if (_presetOverride) {
+            const po = _presetOverride;
+            _presetOverride = null;
+            configFloorY     = po.floorY;
+            configSpawnX     = po.spawnX;
+            configSpawnZ     = po.spawnZ;
+            configSpawnRadius = po.spawnRadius ?? configSpawnRadius;
+            if (po.gameMode) selectedMode = po.gameMode;
+            // Rebuild floor physics at preset height
+            _floorSlab.position.y = configFloorY - 0.2;
+            _floorSlab.updateMatrixWorld(true);
+            physics.rebuildCollision();
+            _launchGameFromPreset();
+            return;
+          }
+
+          // ── NORMAL: show floor setup ───────────────────────────────────────
           phase = 'orbit';
           floorSetupEl.style.display = 'flex';
           controls.enabled = true;
-          setFloor(configFloorY);  // draws grid + handle at initial estimate
+
+          configSpawnX = center.x;
+          configSpawnZ = center.z;
+          const splatW = box.max.x - box.min.x;
+          const splatD = box.max.z - box.min.z;
+          configSpawnRadius = Math.max(2, Math.min(splatW, splatD) * 0.4);
+
+          const xEl = document.getElementById('spawn-x-slider');
+          if (xEl) { xEl.min = box.min.x.toFixed(1); xEl.max = box.max.x.toFixed(1); xEl.step = '0.1'; }
+          const zEl = document.getElementById('spawn-z-slider');
+          if (zEl) { zEl.min = box.min.z.toFixed(1); zEl.max = box.max.z.toFixed(1); zEl.step = '0.1'; }
+
+          setFloor(configFloorY);
           _updateFloorValDisplay();
+          _updateSpawnSphere();
         });
 
-        // .sog files are already processed — no PLY voxelizer available, bbox cage is the boundary
-        const isSog = name?.toLowerCase().endsWith('.sog');
+        // Start collision generation in background (runs regardless of preset override)
         if (isSog) {
           setFloorStatus('SOG loaded — using bbox boundary (no voxel collision)');
         } else {
-          // Read PLY buffer for WebGPU path (file) or use URL (server path)
-          let plyBuffer = null;
-          if (file) {
-            setFloorStatus('⚙ Reading PLY…');
-            plyBuffer = await file.arrayBuffer();
-          }
-          const plyUrlOrBuffer = plyBuffer ?? url;
-          const isBuffer = plyBuffer !== null;
-
-          // Start collision generation in background — WebGPU → server fallback
           _generateCollisionBackground(plyUrlOrBuffer, isBuffer, box, true, session)
             .catch(err => { if (_loadSession === session) setFloorStatus(`⚠ ${err.message?.slice(0, 52)}`); });
         }
@@ -839,6 +1121,34 @@ function updateFPS(dt) {
 }
 
 // ─── Confirm → start tank game ────────────────────────────────────────────────
+// Direct game launch used by preset loader — skips FPS explore phase for
+// non-FPS modes, positions player at saved spawn for FPS mode.
+function _launchGameFromPreset() {
+  const spawnCenter = new THREE.Vector3(configSpawnX, configFloorY, configSpawnZ);
+  phase = 'playing';
+
+  if (selectedMode === 'fps') {
+    // FPS: enter walk mode at saved position, let user click to lock pointer
+    _enterFPS(_splatBox);
+    phase = 'explore'; // keep as explore so confirm is available
+    statusBar.textContent = 'Preset loaded · Enter or Confirm to activate FPS game';
+  } else if (selectedMode === 'flight') {
+    activeGame = createFlightGame({ scene, camera, controls, box: _splatBox, floorY: configFloorY });
+  } else if (selectedMode === 'people') {
+    activeGame = createPeopleGame({
+      scene, camera, controls, box: _splatBox, floorY: configFloorY,
+      voxelMesh: _voxelGlbScene,
+      spawnCenter, spawnRadius: configSpawnRadius,
+    });
+  } else {
+    activeGame = createTankGame({
+      scene, camera, controls, box: _splatBox, center: spawnCenter, voxelMesh: _voxelGlbScene,
+    });
+  }
+  _showPresetBar(true);
+  _renderPresetBar();
+}
+
 function _confirm() {
   if (phase !== 'explore' || !_splatBox) return;
   phase = 'playing';
@@ -846,12 +1156,42 @@ function _confirm() {
   const center = new THREE.Vector3(camera.position.x, configFloorY, camera.position.z);
   _exitFPS();
   activeGame?.dispose();
-  if (selectedMode === 'flight') {
+
+  _showPresetBar(true);
+  _renderPresetBar();
+
+  if (selectedMode === 'fps') {
+    // Stay in FPS mode — just add ball shooter on top
+    phase = 'playing';
+    confirmBtn.style.display = 'none';
+    if (fpsFloorWidget) fpsFloorWidget.style.display = 'none';
+    statusBar.textContent = 'Click shoot · B clear balls · F fly/walk';
+    activeGame = createFPSGame({
+      scene, camera,
+      voxelMesh: _voxelGlbScene,
+      splatCage: _splatCage,
+      floorSlab: _floorSlab,
+    });
+    return; // don't call _exitFPS()
+
+  } else if (selectedMode === 'flight') {
     activeGame = createFlightGame({
       scene, camera, controls,
       box: _splatBox, floorY: configFloorY,
     });
+
+  } else if (selectedMode === 'people') {
+    activeGame = createPeopleGame({
+      scene, camera, controls,
+      box:          _splatBox,
+      floorY:       configFloorY,
+      voxelMesh:    _voxelGlbScene,
+      spawnCenter:  new THREE.Vector3(configSpawnX, configFloorY, configSpawnZ),
+      spawnRadius:  configSpawnRadius,
+    });
+
   } else {
+    // Tank Battle (default)
     activeGame = createTankGame({
       scene, camera, controls,
       box: _splatBox, center, voxelMesh: _voxelGlbScene,
@@ -883,9 +1223,11 @@ function animate() {
   clock.update();
   const dt = Math.min(clock.getDelta(), 0.05);
 
-  if (activeGame)   activeGame.update(dt);
-  else if (fpsMode) updateFPS(dt);
-  else              controls.update();
+  // FPS physics always runs when pointer-locked (explore phase or FPS game mode)
+  if (fpsMode) updateFPS(dt);
+  // Game logic (tank/flight/fps-balls/people placeholder)
+  if (activeGame)        activeGame.update(dt);
+  else if (!fpsMode)     controls.update();
 
   renderer.render(scene, camera);
 }

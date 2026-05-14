@@ -1,0 +1,5 @@
+websockets>=12.0
+numpy>=1.24.0
+# Newton + Warp (GPU required for full sim — falls back to mock without these)
+# warp-lang>=1.0.0
+# newton-physics>=0.1.0

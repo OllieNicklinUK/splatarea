@@ -10,7 +10,8 @@
   "dependencies": {
     "three": "^0.184.0",
     "@sparkjsdev/spark": "^0.1.10",
-    "three-mesh-bvh": "^0.9.9"
+    "three-mesh-bvh": "^0.9.9",
+    "@pmndrs/viverse": "^0.2.20"
   },
   "devDependencies": {
     "vite": "^5.3.3",

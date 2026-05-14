@@ -17,5 +17,13 @@ test_*.jpg
 
 # Zip artifacts under templates/
 templates/**/*.zip
+
+# Large scratch files at repo root
+2d-gaussian-splatting-main.zip
+2d-gaussian-splatting-main/
+splats/
+
+# NewtonDemo node_modules (source tracked, deps not)
+NewtonDemo/node_modules/
 .viverse_agent_memory.json
 .python-env/
