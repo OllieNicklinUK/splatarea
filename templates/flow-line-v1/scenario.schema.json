@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Flow Line Scenario Schema",
+  "type": "object",
+  "properties": {
+    "ruleset": {
+      "$ref": "#/definitions/rulesetRef"
+    }
+  },
+  "definitions": {
+    "rulesetRef": {
+      "type": "string",
+      "description": "Relative path to a ruleset JSON file when a specialized scenario is used."
+    }
+  }
+}

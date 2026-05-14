@@ -1,0 +1,84 @@
+{
+  "id": "lambda-tool-v1",
+  "version": "1.0.0",
+  "upstream": {
+    "sourceType": "internal",
+    "sourceRoot": "template-sources/lambda-tool/app"
+  },
+  "capabilities": ["auth", "lambda", "publish"],
+  "immutablePaths": [
+    "src/viverseAuth.js",
+    "src/viverseConfig.js",
+    "src/viverseLambda.js",
+    "src/main.js"
+  ],
+  "editablePaths": [
+    "index.html",
+    "src/**",
+    "lambda/**",
+    "public/**",
+    "rulesets/**",
+    "README.md",
+    "TEMPLATE.md",
+    "scenario.schema.json",
+    "package.json",
+    ".env.lambda.example"
+  ],
+  "injectionHooks": [
+    {
+      "hookId": "auth-bootstrap",
+      "file": "src/viverseAuth.js",
+      "functionOrRegion": "ViverseAuthController.initialize",
+      "purpose": "VIVERSE auth bootstrap. Auth is required — Lambda invoke needs accessToken + userId.",
+      "required": true
+    },
+    {
+      "hookId": "lambda-invoke",
+      "file": "src/viverseLambda.js",
+      "functionOrRegion": "ViverseLambdaService.invoke",
+      "purpose": "Play SDK Lambda invoke wrapper. Handles roomId synthesis, multiplayerClient lifecycle, Key/Value decode, and timeout. Must not be modified.",
+      "required": true
+    },
+    {
+      "hookId": "app-entry",
+      "file": "src/main.js",
+      "functionOrRegion": "mount",
+      "purpose": "App mount. Must auth.initialize() then extract accessToken+userId and pass to lambda context. Must render a login gate when unauthenticated.",
+      "required": true
+    },
+    {
+      "hookId": "lambda-event",
+      "file": "lambda/prices_event.js",
+      "functionOrRegion": "top-level script",
+      "purpose": "Reference Lambda event script. Add one file per external API capability. Use getEnv() for secrets, reply() for sanitized output only. Never return raw secret values.",
+      "required": false
+    }
+  ],
+  "requiredGates": [
+    "build.app_id_propagation",
+    "lambda.event_contracts"
+  ],
+  "appIdPropagation": {
+    "strategy": "runtime-config-or-hostname",
+    "approvedConfigFiles": ["index.html", "src/viverseConfig.js"]
+  },
+  "buildConfig": {
+    "required": true,
+    "command": "npm run build",
+    "outputDir": "dist",
+    "publishSource": "dist",
+    "entryHtml": "index.html"
+  },
+  "lambdaConfig": {
+    "envFile": ".env.lambda.example",
+    "scriptDir": "lambda",
+    "invokeClient": "src/viverseLambda.js",
+    "roomIdStrategy": "synthetic",
+    "roomIdPattern": "lambda-{appId}"
+  },
+  "rulesetSchemaRef": "./scenario.schema.json#/definitions/rulesetRef",
+  "scenarioSchemaRef": "./scenario.schema.json",
+  "enforcement": {
+    "defaultMode": "enforce"
+  }
+}

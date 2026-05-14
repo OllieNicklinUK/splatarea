@@ -1,0 +1,61 @@
+openapi: 3.0.0
+info:
+  title: VIVERSE AI Agent API (Discovery & SDK)
+  description: API for the VIVERSE AI Agent to discover Worlds/Landmarks and perform SDK framework integrations.
+  version: 1.1.0
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+  - url: https://your-public-url.com
+    description: Public production server (Replace with your actual URL)
+paths:
+  /api/ai/chat:
+    post:
+      summary: Send a message to the VIVERSE AI Agent
+      description: Ask about VIVERSE content (Worlds, Landmarks) or SDK integration tasks.
+
+      operationId: chatWithAgent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                  description: The task or question for the agent.
+                  example: "Find the most popular art galleries in VIVERSE"
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  response:
+                    type: string
+                    description: The agent's generated guidance or action plan.
+        '400':
+          description: Bad request (missing message)
+        '500':
+          description: Internal server error
+  /api/ai/health:
+    get:
+      summary: Check API health
+      description: Returns the status of the AI service.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is online
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "AI Service is online"

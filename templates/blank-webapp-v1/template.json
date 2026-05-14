@@ -1,0 +1,77 @@
+{
+  "id": "blank-webapp-v1",
+  "version": "1.1.0",
+  "buildConfig": {
+    "required": true,
+    "type": "bundled",
+    "command": "npm run build",
+    "publishSource": "dist"
+  },
+  "upstream": {
+    "sourceType": "internal",
+    "sourceRoot": "template-sources/blank-webapp/app"
+  },
+  "capabilities": [
+    "auth",
+    "publish"
+  ],
+  "immutablePaths": [
+    "src/viverseAuth.js",
+    "src/viverseConfig.js",
+    "src/main.js"
+  ],
+  "editablePaths": [
+    "index.html",
+    "src/**",
+    "public/**",
+    "rulesets/**",
+    "README.md",
+    "TEMPLATE.md",
+    "scenario.schema.json",
+    "package.json",
+    ".env",
+    "vite.config.js"
+  ],
+  "injectionHooks": [
+    {
+      "hookId": "auth-bootstrap",
+      "file": "src/viverseAuth.js",
+      "functionOrRegion": "ViverseAuthController.initialize",
+      "purpose": "VIVERSE auth bootstrap with resilient profile fallback chain. Auth is optional \u2014 app must remain usable when unauthenticated.",
+      "required": true
+    },
+    {
+      "hookId": "app-entry",
+      "file": "src/main.js",
+      "functionOrRegion": "mount",
+      "purpose": "App mount point. Must call auth.initialize() then mount the app UI regardless of auth outcome.",
+      "required": true
+    }
+  ],
+  "requiredGates": [
+    "build.app_id_propagation",
+    "runtime.auth_profile_pass"
+  ],
+  "appIdPropagation": {
+    "strategy": "runtime-config-or-hostname",
+    "approvedConfigFiles": [
+      "index.html",
+      "src/viverseConfig.js"
+    ]
+  },
+  "buildConfig": {
+    "required": true,
+    "command": "npm ci --prefer-offline 2>/dev/null || npm install --prefer-offline && npm run build",
+    "outputDir": "dist",
+    "publishSource": "dist",
+    "entryHtml": "index.html"
+  },
+  "rulesetSchemaRef": "./scenario.schema.json#/definitions/rulesetRef",
+  "scenarioSchemaRef": "./scenario.schema.json",
+  "enforcement": {
+    "defaultMode": "enforce"
+  },
+  "excludedRuntimeChecks": [
+    "matchmaking"
+  ]
+}

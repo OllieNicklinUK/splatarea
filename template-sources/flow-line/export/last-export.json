@@ -1,0 +1,40 @@
+{
+  "templateId": "flow-line-v1",
+  "exportedAt": "2026-04-20T08:41:56.711Z",
+  "sourceRoot": "template-sources/flow-line/app",
+  "dryRun": false,
+  "contractVersion": "1.0.0",
+  "immutablePaths": [
+    "__game-scripts.js",
+    "viverse-auth-overlay.js"
+  ],
+  "editablePaths": [
+    "index.html",
+    "manifest.json",
+    "__settings__.js",
+    "__start__.js",
+    "__loading__.js",
+    "2453710.json",
+    "config.json",
+    "files/**",
+    "styles.css",
+    "playcanvas-stable.min.js",
+    "glb/**",
+    "css/**",
+    "js/**",
+    "thumbs/**",
+    "README.md",
+    "TEMPLATE.md",
+    "scenario.schema.json"
+  ],
+  "injectionHooks": [
+    {
+      "hookId": "leaderboard-runtime",
+      "file": "__game-scripts.js"
+    },
+    {
+      "hookId": "profile-chip",
+      "file": "viverse-auth-overlay.js"
+    }
+  ]
+}

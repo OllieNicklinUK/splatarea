@@ -1,0 +1,47 @@
+{
+  "templateId": "flight-simulator-v1",
+  "exportedAt": "2026-05-05T02:19:01.364Z",
+  "sourceRoot": "template-sources/flight-simulator/app",
+  "dryRun": false,
+  "contractVersion": "1.0.0",
+  "immutablePaths": [
+    ".gitignore",
+    "package.json",
+    "vite.config.js",
+    "js/viverseAuth.js",
+    "js/viverseConfig.js",
+    "js/viverseLeaderboard.js",
+    "src/main.js",
+    "src/core/EventBus.js",
+    "src/core/GameState.js"
+  ],
+  "editablePaths": [
+    "index.html",
+    "src/core/Constants.js",
+    "src/core/Game.js",
+    "src/gameplay/**",
+    "src/level/**",
+    "src/systems/**",
+    "src/audio/**",
+    "src/ui/**",
+    "public/**"
+  ],
+  "injectionHooks": [
+    {
+      "hookId": "auth-bootstrap",
+      "file": "js/viverseAuth.js"
+    },
+    {
+      "hookId": "leaderboard-client",
+      "file": "js/viverseLeaderboard.js"
+    },
+    {
+      "hookId": "game-loop",
+      "file": "src/core/Game.js"
+    },
+    {
+      "hookId": "flight-physics",
+      "file": "src/gameplay/Player.js"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "default",
+  "name": "Default DashRunner Rules",
+  "description": "Standard endless-runner profile with matchmaking enabled and balanced default pacing.",
+  "theme": "city",
+  "difficulty": 5,
+  "multiplayerMode": true
+}

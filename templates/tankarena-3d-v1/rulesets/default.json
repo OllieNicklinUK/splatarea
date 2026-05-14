@@ -1,0 +1,11 @@
+{
+  "id": "default",
+  "name": "Default TankArena Rules",
+  "roundTimeSeconds": 90,
+  "materialThresholdForHeavy": 3,
+  "standardShotDamage": 18,
+  "heavyShotDamage": 34,
+  "standardCooldownSeconds": 0.55,
+  "heavyCooldownSeconds": 1.75,
+  "botDifficulty": "normal-lite"
+}

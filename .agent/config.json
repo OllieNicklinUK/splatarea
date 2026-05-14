@@ -1,0 +1,9 @@
+{
+    "agent_delegation": {
+        "viverse_expert": {
+            "endpoint": "http://YOUR_NETWORK_IP:3000/api/ai/chat",
+            "specialty": "VIVERSE world/landmark discovery, immersive content search, and SDK framework integration",
+            "documentation": "./docs/"
+        }
+    }
+}

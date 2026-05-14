@@ -1,0 +1,21 @@
+node_modules/
+.env
+.env.local
+.env.lambda.local
+.DS_Store
+dist/
+build/
+*.log
+.viverse_history.json
+agent_*.json
+request.json
+test_*.jpg
+
+# VIVERSE Agent Temp Directories
+.viverse_workspaces/
+.tmp_*.mjs
+
+# Zip artifacts under templates/
+templates/**/*.zip
+.viverse_agent_memory.json
+.python-env/

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Viverse AI Agent — Implemented Harness Methods</title>
+  <style>
+    @media print {
+      body { margin: 0; }
+      .no-print { display: none; }
+      h1 { font-size: 18pt; }
+      h2 { font-size: 13pt; page-break-after: avoid; }
+      table { page-break-inside: avoid; }
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      color: #1a1a1a;
+      max-width: 960px;
+      margin: 40px auto;
+      padding: 0 24px;
+      line-height: 1.55;
+    }
+    h1 {
+      font-size: 22px;
+      border-bottom: 2px solid #0066cc;
+      padding-bottom: 8px;
+      color: #0066cc;
+    }
+    h2 {
+      font-size: 15px;
+      margin-top: 28px;
+      margin-bottom: 8px;
+      color: #333;
+      border-left: 4px solid #0066cc;
+      padding-left: 8px;
+    }
+    .subtitle {
+      color: #555;
+      font-size: 12px;
+      margin-top: -6px;
+      margin-bottom: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 24px;
+      font-size: 12.5px;
+    }
+    th {
+      background: #0066cc;
+      color: #fff;
+      text-align: left;
+      padding: 8px 10px;
+      font-weight: 600;
+    }
+    td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #e0e0e0;
+      vertical-align: top;
+    }
+    tr:nth-child(even) td { background: #f5f8ff; }
+    tr:hover td { background: #e8f0fe; }
+    code {
+      background: #f0f0f0;
+      border-radius: 3px;
+      padding: 1px 5px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+      font-size: 11.5px;
+      color: #c7254e;
+    }
+    .flow-box {
+      background: #f5f8ff;
+      border: 1px solid #b0c8f0;
+      border-radius: 6px;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+      font-size: 12.5px;
+    }
+    .flow-box strong { color: #0066cc; }
+    .arrow { color: #888; }
+    .tag {
+      display: inline-block;
+      background: #e3f0ff;
+      color: #0055bb;
+      border-radius: 4px;
+      padding: 1px 7px;
+      font-size: 11px;
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    footer {
+      margin-top: 36px;
+      font-size: 11px;
+      color: #999;
+      border-top: 1px solid #ddd;
+      padding-top: 10px;
+    }
+    .print-btn {
+      float: right;
+      background: #0066cc;
+      color: white;
+      border: none;
+      padding: 8px 18px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+    .print-btn:hover { background: #0055aa; }
+  </style>
+</head>
+<body>
+
+<button class="print-btn no-print" onclick="window.print()">Print / Save as PDF</button>
+
+<h1>Viverse AI Agent — Implemented Agent Harness Methods</h1>
+<p class="subtitle">Source: <code>src/services/OrchestratorService.js</code> &amp; <code>src/services/WorkflowStageService.js</code> &nbsp;|&nbsp; Generated 2026-05-05</p>
+
+<!-- Section 1 -->
+<h2>1. Agent Roles (Harness Participants)</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Role</th>
+      <th>Task IDs</th>
+      <th>Stage</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Architect</strong></td>
+      <td><code>architect</code>, <code>task_architect</code></td>
+      <td><code>plan</code></td>
+      <td>Designs the app contract; generates the execution plan</td>
+    </tr>
+    <tr>
+      <td><strong>Coder / Auth Preflight</strong></td>
+      <td><code>auth_preflight</code></td>
+      <td><code>auth_preflight</code></td>
+      <td>Bootstraps / verifies VIVERSE SDK auth before coding begins</td>
+    </tr>
+    <tr>
+      <td><strong>Coder / Scaffold</strong></td>
+      <td><em>scaffold tasks</em></td>
+      <td><code>scaffold_preflight</code></td>
+      <td>Runs <code>create-vite</code> / template scaffolding</td>
+    </tr>
+    <tr>
+      <td><strong>Coder / Logic</strong></td>
+      <td><code>coder_logic</code>, <code>task_template_logic</code></td>
+      <td><code>implement</code></td>
+      <td>Implements gameplay / app logic</td>
+    </tr>
+    <tr>
+      <td><strong>Coder / Publish</strong></td>
+      <td><code>coder_publish</code>, <code>task_template_publish</code></td>
+      <td><code>publish</code></td>
+      <td>Runs <code>viverse-cli app publish</code> to deploy the app</td>
+    </tr>
+    <tr>
+      <td><strong>Reviewer</strong></td>
+      <td><code>task_reviewer</code></td>
+      <td><code>verify</code></td>
+      <td>Reviews coder output for runtime correctness &amp; SDK compliance</td>
+    </tr>
+    <tr>
+      <td><strong>Verifier</strong></td>
+      <td><code>task_verifier</code></td>
+      <td><code>verify</code></td>
+      <td>Deterministic release checks: App ID gate, SDK URLs, auth gate, publish-readiness</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- Section 2 -->
+<h2>2. Key Harness Orchestration Methods (OrchestratorService)</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width:34%">Method</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>processRequest()</code> <span class="tag">entry point</span></td>
+      <td>Main async generator — iterates tasks, dispatches by role, handles streaming &amp; retries</td>
+    </tr>
+    <tr>
+      <td><code>_classifyRequestIntent()</code></td>
+      <td>Routes to <code>new_app</code> / <code>logic_iteration</code> / <code>asset_iteration</code> harness based on message analysis</td>
+    </tr>
+    <tr>
+      <td><code>_enforceWorkflowTasks()</code></td>
+      <td>Injects and wires all required tasks (auth_preflight → coder → reviewer → verifier); patches missing deps</td>
+    </tr>
+    <tr>
+      <td><code>_splitCombinedCoderTasks()</code></td>
+      <td>Splits monolithic coder tasks into logic + publish subtasks</td>
+    </tr>
+    <tr>
+      <td><code>_canonicalizeTemplateWorkflowTasks()</code></td>
+      <td>Normalizes template-bound task definitions against registry</td>
+    </tr>
+    <tr>
+      <td><code>_pruneLegacyTasksAfterSplit()</code></td>
+      <td>Removes superseded task entries after task splitting</td>
+    </tr>
+    <tr>
+      <td><code>_runAuthAcceptanceGate()</code> <span class="tag">async</span></td>
+      <td>Validates VIVERSE SDK auth bootstrap is in place before execution proceeds</td>
+    </tr>
+    <tr>
+      <td><code>_runTemplateCompletionGates()</code> <span class="tag">async</span></td>
+      <td>Runs template certification gates post-publish</td>
+    </tr>
+    <tr>
+      <td><code>_ensureArchitectContract()</code> <span class="tag">async</span></td>
+      <td>Materializes and persists the Architect's contract artifact to workspace</td>
+    </tr>
+    <tr>
+      <td><code>_ensureRuntimeRevalidationTask()</code></td>
+      <td>Injects a re-verification task after a fix cycle completes</td>
+    </tr>
+    <tr>
+      <td><code>_scheduleAutoTestFixTask()</code></td>
+      <td>Schedules a coder fix task when browser runtime probe fails</td>
+    </tr>
+    <tr>
+      <td><code>_scheduleDeterministicVerifierFixTask()</code></td>
+      <td>Schedules a targeted fix task based on verifier failure signature</td>
+    </tr>
+    <tr>
+      <td><code>_reviveTransientInfraFailedTasks()</code></td>
+      <td>Re-queues tasks that failed due to transient infrastructure errors on resume</td>
+    </tr>
+    <tr>
+      <td><code>_reviveStaleBlockedTasks()</code></td>
+      <td>Unblocks tasks stuck in a blocked state on resume</td>
+    </tr>
+    <tr>
+      <td><code>_reclassifyObsoleteSkillComplianceFailures()</code></td>
+      <td>Tolerates stale skill compliance failures when skill ledger has since been satisfied</td>
+    </tr>
+    <tr>
+      <td><code>_finalizeWorkflowState()</code> <span class="tag">async</span></td>
+      <td>Persists final workflow outcome (completed / paused / failed) to state store</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- Section 3 -->
+<h2>3. WorkflowStageService Methods</h2>
+<table>
+  <thead>
+    <tr>
+      <th style="width:34%">Method</th>
+      <th>Purpose</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>stageForTask(task)</code></td>
+      <td>Derives the pipeline stage name (<code>plan</code>, <code>auth_preflight</code>, <code>scaffold_preflight</code>, <code>publish</code>, <code>verify</code>, <code>implement</code>) from task role / id / prompt</td>
+    </tr>
+    <tr>
+      <td><code>transition(state, stage, meta)</code></td>
+      <td>Transitions workflow to a new stage; appends entry to <code>stageHistory</code></td>
+    </tr>
+    <tr>
+      <td><code>transitionForTask(state, task, meta)</code></td>
+      <td>Derives stage from task and calls <code>transition()</code></td>
+    </tr>
+    <tr>
+      <td><code>markFinalize(state, meta)</code></td>
+      <td>Transitions workflow to the <code>finalize</code> terminal stage</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- Section 4 -->
+<h2>4. Harness Flow — 3 Routing Modes</h2>
+
+<div class="flow-box">
+  <strong>new_app</strong> — Full pipeline<br/>
+  Architect <span class="arrow">→</span> auth_preflight (Coder) <span class="arrow">→</span> Coder/scaffold <span class="arrow">→</span> Coder/logic <span class="arrow">→</span> Coder/publish <span class="arrow">→</span> Reviewer <span class="arrow">→</span> Verifier
+</div>
+
+<div class="flow-box">
+  <strong>logic_iteration</strong> — Skip Architect &amp; app creation<br/>
+  auth_preflight (Coder) <span class="arrow">→</span> Coder/logic <span class="arrow">→</span> Coder/publish <span class="arrow">→</span> Reviewer <span class="arrow">→</span> Verifier
+</div>
+
+<div class="flow-box">
+  <strong>asset_iteration</strong> — Visual-only edits, no auth, no Reviewer<br/>
+  Coder/asset <span class="arrow">→</span> Coder/publish <span class="arrow">→</span> Verifier
+</div>
+
+<footer>
+  Viverse AI Agent &nbsp;|&nbsp; viverse-ai-agent/src/services/OrchestratorService.js &nbsp;|&nbsp; 2026-05-05
+</footer>
+
+</body>
+</html>

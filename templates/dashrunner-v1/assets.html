@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crazy Nonna - Asset Manager</title>
+    <link rel="stylesheet" href="css/editor.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Import Map from main project -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+</head>
+
+<body>
+    <header>
+        <h1>
+            <span>🍝 Crazy Nonna</span>
+            <span class="badge">ASSET MANAGER</span>
+        </h1>
+        <div class="actions">
+            <button class="btn" id="download-btn">💾 Download Config</button>
+            <button class="btn btn-primary" id="save-btn">✅ Save Changes</button>
+        </div>
+    </header>
+
+    <main>
+        <!-- Left Sidebar: Asset List -->
+        <div class="sidebar">
+            <div class="panel-header">
+                <span>Assets</span>
+                <button class="btn icon-btn" id="add-asset-btn">+</button>
+            </div>
+            <div class="asset-list" id="asset-list">
+                <!-- Items injected here by JS -->
+            </div>
+        </div>
+
+        <!-- Center: 3D Viewport -->
+        <div class="viewport">
+            <div id="canvas-container"></div>
+
+            <div class="overlay-controls">
+                <button class="btn" id="preview-anim-btn">▶ Play Animation</button>
+                <button class="btn" id="reset-cam-btn">📷 Reset Camera</button>
+                <button class="btn" id="toggle-grid-btn">📏 Grid</button>
+            </div>
+        </div>
+
+        <!-- Right: Inspector -->
+        <div class="inspector">
+            <div class="panel-header">
+                <span>Properties</span>
+                <button class="btn btn-danger" id="delete-btn">🗑️</button>
+            </div>
+
+            <div class="inspector-content" id="inspector-content">
+                <div class="form-group">
+                    <label>ID</label>
+                    <input type="text" id="prop-id" readonly style="color: #666;">
+                </div>
+
+                <div class="form-group">
+                    <label>Name</label>
+                    <input type="text" id="prop-name">
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <label>Type</label>
+                        <select id="prop-type">
+                            <option value="obstacle">Obstacle</option>
+                            <option value="collectible">Collectible</option>
+                        </select>
+                    </div>
+                    <div class="stat-card">
+                        <label>Points</label>
+                        <input type="number" id="prop-points">
+                    </div>
+                </div>
+
+                <div class="section-title">Visuals</div>
+
+                <div class="form-group">
+                    <label>Model Type</label>
+                    <select id="prop-model-type">
+                        <option value="primitive">Primitive Shape</option>
+                        <option value="glb">GLB Model</option>
+                    </select>
+                </div>
+
+                <!-- Primitive Settings -->
+                <div id="primitive-settings">
+                    <div class="form-group">
+                        <label>Geometry</label>
+                        <select id="prop-geometry">
+                            <option value="box">Box</option>
+                            <option value="sphere">Sphere</option>
+                            <option value="cylinder">Cylinder</option>
+                            <option value="torus">Torus</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Color</label>
+                        <input type="color" id="prop-color">
+                    </div>
+                    <div class="form-group">
+                        <label>Emissive Color</label>
+                        <input type="color" id="prop-emissive">
+                    </div>
+                </div>
+
+                <!-- GLB Settings -->
+                <div id="glb-settings" class="hidden">
+                    <div class="form-group">
+                        <label>Model Path</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="prop-model-path">
+                            <button class="btn icon-btn" id="browse-btn">📂</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Scale</label>
+                        <input type="number" id="prop-scale" step="0.1" value="1.0">
+                    </div>
+                </div>
+
+                <div class="section-title">Gameplay</div>
+
+                <div class="form-group">
+                    <label>Effect</label>
+                    <select id="prop-effect">
+                        <option value="none">None</option>
+                        <option value="damage">Damage (Obstacle)</option>
+                        <option value="score">Score Points</option>
+                        <option value="boost">Speed Boost</option>
+                        <option value="life">Extra Life</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Collision Sound</label>
+                    <select id="prop-sound">
+                        <option value="hit.mp3">Hit</option>
+                        <option value="coin.mp3">Coin</option>
+                        <option value="powerup.mp3">Powerup</option>
+                    </select>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <input type="file" id="file-uploader" accept=".glb,.gltf" style="display: none;">
+
+    <script type="module" src="js/editor/AssetEditor.js"></script>
+</body>
+
+</html>

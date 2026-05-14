@@ -1,0 +1,20 @@
+{
+  "name": "gaussian-mode-play",
+  "version": "1.0.0",
+  "description": "Browser FPS viewer for Gaussian Splat scenes",
+  "type": "module",
+  "scripts": {
+    "dev": "node --max-http-header-size=1048576 node_modules/.bin/vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@sparkjsdev/spark": "^0.1.10",
+    "three": "^0.184.0",
+    "three-mesh-bvh": "^0.9.9"
+  },
+  "devDependencies": {
+    "vite": "^5.3.3",
+    "vite-plugin-static-copy": "^1.0.6"
+  }
+}

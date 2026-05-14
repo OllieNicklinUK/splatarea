@@ -1,0 +1,85 @@
+{
+  "id": "flow-line-v1",
+  "version": "1.0.0",
+  "buildConfig": {
+    "required": false,
+    "type": "static",
+    "command": null,
+    "publishSource": "."
+  },
+  "upstream": {
+    "sourceType": "internal",
+    "sourceRoot": "template-sources/flow-line/app"
+  },
+  "capabilities": [
+    "auth",
+    "leaderboard",
+    "publish"
+  ],
+  "immutablePaths": [
+    "__modules__.js",
+    "__start__.js",
+    "__loading__.js",
+    "playcanvas-stable.min.js",
+    "viverse-auth-overlay.js"
+  ],
+  "editablePaths": [
+    "index.html",
+    "manifest.json",
+    "__settings__.js",
+    "2453710.json",
+    "config.json",
+    "files/**",
+    "styles.css",
+    "glb/**",
+    "css/**",
+    "js/**",
+    "thumbs/**",
+    "README.md",
+    "TEMPLATE.md",
+    "scenario.schema.json"
+  ],
+  "injectionHooks": [
+    {
+      "hookId": "leaderboard-runtime",
+      "file": "__game-scripts.js",
+      "functionOrRegion": "ViverseLeaderboard",
+      "purpose": "VIVERSE auth bootstrap, gameDashboard leaderboard fetch/upload, and PlayCanvas leaderboard UI wiring.",
+      "required": true
+    },
+    {
+      "hookId": "profile-chip",
+      "file": "viverse-auth-overlay.js",
+      "functionOrRegion": "resolveProfile",
+      "purpose": "Compact host-page profile chip with canonical VIVERSE profile recovery chain.",
+      "required": true
+    }
+  ],
+  "appIdPropagation": {
+    "strategy": "runtime-config-or-hostname",
+    "approvedConfigFiles": []
+  },
+  "requiredGates": [],
+  "appIdPropagation": {
+    "strategy": "runtime-config-or-hostname",
+    "approvedConfigFiles": [
+      "2453710.json",
+      "index.html"
+    ],
+    "authNote": "App ID placeholder YOUR_APP_ID is pre-injected in dist/2453710.json at entities.e951e842...components.script.scripts.viverseLeaderboard.attributes.clientId. ONLY run: find dist/ -name '*.json' -o -name '*.html' | xargs sed -i '' 's/YOUR_APP_ID/<actual-appId>/g'. Do NOT try to replace empty string or use any other sed pattern."
+  },
+  "authPreflightMode": "verify_only",
+  "rulesetSchemaRef": "./scenario.schema.json#/definitions/rulesetRef",
+  "scenarioSchemaRef": "./scenario.schema.json",
+  "enforcement": {
+    "defaultMode": "enforce"
+  },
+  "buildConfig": {
+    "required": false,
+    "type": "static",
+    "command": null,
+    "publishSource": ".",
+    "entryHtml": "index.html",
+    "note": "PlayCanvas static template — no npm/vite. Publish workspace root directly."
+  }
+}

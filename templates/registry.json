@@ -1,0 +1,260 @@
+{
+  "version": "1.1.0",
+  "updatedAt": "2026-05-02T06:50:05.084Z",
+  "templates": [
+    {
+      "id": "blank-webapp-v1",
+      "name": "Blank Web App",
+      "version": "1.1.0",
+      "genre": "Utility",
+      "description": "Mobile-first VIVERSE utility app baseline. Auth optional, no Lambda. Ideal for polls, countdowns, welcome screens, and simple interactive tools embeddable as iframe widgets.",
+      "tags": [
+        "app",
+        "utility",
+        "mobile",
+        "iframe",
+        "widget",
+        "no-lambda"
+      ],
+      "capabilities": [
+        "auth",
+        "publish"
+      ],
+      "status": "active",
+      "templatePath": "templates/blank-webapp-v1",
+      "recommendedPrompt": "Create a new utility app using template 'blank-webapp-v1'. Keep auth bootstrap and config resolution intact. Build the app UI and logic in src/ within the editable surface.",
+      "thumbnail": null,
+      "cta": "utility",
+      "demoPlayLink": null,
+      "demoAppId": null,
+      "utilityCtaExamples": [
+        "Build a countdown timer",
+        "Create a poll widget",
+        "Make a score tracker"
+      ]
+    },
+    {
+      "id": "dashrunner-v1",
+      "name": "DashRunner Template",
+      "version": "1.0.0",
+      "genre": "Endless Runner",
+      "description": "Three.js endless runner template with VIVERSE auth, leaderboard, matchmaking room flow, and avatar-aware VRM runtime.",
+      "tags": [
+        "game",
+        "runner",
+        "threejs",
+        "arcade",
+        "auth",
+        "leaderboard",
+        "multiplayer",
+        "vrm"
+      ],
+      "capabilities": [
+        "auth",
+        "leaderboard",
+        "matchmaking",
+        "publish"
+      ],
+      "status": "active",
+      "templatePath": "templates/dashrunner-v1",
+      "recommendedPrompt": "Use template 'dashrunner-v1' — but change the character model, obstacle style, and visual theme to something new.",
+      "thumbnail": "/images/thumbnails/dashrunner-v1.png",
+      "demoPlayLink": "https://worlds.viverse.com/ejxyg8K",
+      "demoAppId": "gpszgk2rug"
+    },
+    {
+      "id": "flow-line-v1",
+      "name": "Flow Line Template",
+      "version": "1.0.0",
+      "genre": "Puzzle",
+      "description": "PlayCanvas puzzle template with VIVERSE auth, compact profile chip, and level-progress leaderboard submission for mobile-first world previews.",
+      "tags": [
+        "game",
+        "puzzle",
+        "playcanvas",
+        "auth",
+        "leaderboard",
+        "mobile"
+      ],
+      "capabilities": [
+        "auth",
+        "leaderboard",
+        "publish"
+      ],
+      "status": "active",
+      "templatePath": "templates/flow-line-v1",
+      "recommendedPrompt": "Use template 'flow-line-v1' — but change the color palette, board style, and visual theme to something new.",
+      "thumbnail": "/images/thumbnails/flow-line-v1.png",
+      "demoPlayLink": "https://worlds.viverse.com/Wy3mp9J",
+      "demoAppId": "yempr9y8p5"
+    },
+    {
+      "id": "lambda-tool-v1",
+      "name": "Lambda Tool",
+      "version": "1.0.0",
+      "genre": "Utility",
+      "description": "Mobile-first VIVERSE tool app with Play Lambda backend for secure external API access. Auth required. Use for data-driven tools like tickers, weather widgets, AI chat, and any app needing third-party API keys.",
+      "tags": [
+        "app",
+        "utility",
+        "mobile",
+        "iframe",
+        "widget",
+        "lambda",
+        "api",
+        "data"
+      ],
+      "capabilities": [
+        "auth",
+        "lambda",
+        "publish"
+      ],
+      "status": "active",
+      "templatePath": "templates/lambda-tool-v1",
+      "recommendedPrompt": "Create a new Lambda-backed tool app using template 'lambda-tool-v1'. Keep auth, Lambda invoke client, and config resolution intact. Add lambda event scripts in lambda/ and build the app UI in src/ within the editable surface.",
+      "thumbnail": null,
+      "cta": "utility",
+      "demoPlayLink": null,
+      "demoAppId": null,
+      "utilityCtaExamples": [
+        "Build a live weather widget",
+        "Create an AI chat tool",
+        "Make a news ticker"
+      ]
+    },
+    {
+      "id": "redpointfish-v1",
+      "name": "RedPointFish Template",
+      "version": "1.0.0",
+      "genre": "Card Strategy",
+      "description": "Polished RedPointFish multiplayer poker template with VIVERSE auth/matchmaking and leaderboard flow.",
+      "tags": [
+        "game",
+        "poker",
+        "multiplayer",
+        "auth",
+        "leaderboard",
+        "react"
+      ],
+      "capabilities": [
+        "auth",
+        "matchmaking",
+        "leaderboard",
+        "publish"
+      ],
+      "status": "active",
+      "templatePath": "templates/redpointfish-v1",
+      "recommendedPrompt": "Use template 'redpointfish-v1' — but change the card art, table theme, and UI colors to something new.",
+      "thumbnail": "/images/thumbnails/redpointfish-v1.png",
+      "demoPlayLink": "https://worlds.viverse.com/sykM5Ku",
+      "demoAppId": "7ptjddhecm"
+    },
+    {
+      "id": "starter-kit-racing-v1",
+      "name": "Starter Kit Racing Template",
+      "version": "1.0.0",
+      "genre": "Arcade Racing",
+      "description": "Three.js racing template with VIVERSE auth, leaderboard, and closed-loop random track generation.",
+      "tags": [
+        "game",
+        "racing",
+        "threejs",
+        "auth",
+        "leaderboard"
+      ],
+      "capabilities": [
+        "auth",
+        "leaderboard",
+        "publish"
+      ],
+      "status": "active",
+      "templatePath": "templates/starter-kit-racing-v1",
+      "recommendedPrompt": "Use template 'starter-kit-racing-v1' — but change the car model, track theme, and visual style to something new.",
+      "thumbnail": "/images/thumbnails/starter-kit-racing-v1.png",
+      "demoPlayLink": "https://worlds.viverse.com/txD5e6K",
+      "demoAppId": "2z3zhuvzr7"
+    },
+    {
+      "id": "tankarena-3d-v1",
+      "name": "TankArena 3D Template",
+      "version": "1.0.0",
+      "genre": "Arcade Action",
+      "description": "Fixed-camera 3D tank arena template with auth, leaderboard, matchmaking room lifecycle, heavy weapons, and random battlefield generation.",
+      "tags": [
+        "game",
+        "tank",
+        "threejs",
+        "arcade",
+        "auth",
+        "leaderboard",
+        "multiplayer"
+      ],
+      "capabilities": [
+        "auth",
+        "leaderboard",
+        "matchmaking",
+        "publish"
+      ],
+      "status": "active",
+      "templatePath": "templates/tankarena-3d-v1",
+      "recommendedPrompt": "Use template 'tankarena-3d-v1' — but change the tank models, arena theme, and visual effects to something new.",
+      "thumbnail": "/images/thumbnails/tankarena-3d-v1.png",
+      "demoPlayLink": "https://worlds.viverse.com/fCJtBxZ",
+      "demoAppId": "n662tybnvh"
+    },
+    {
+      "id": "flight-simulator-v1",
+      "name": "Flight Simulator Template",
+      "version": "1.0.0",
+      "genre": "Flight / Arcade",
+      "description": "Three.js 3D flight simulator with VIVERSE auth, global leaderboard, ring-collection scoring, and procedural terrain.",
+      "tags": [
+        "game",
+        "flight",
+        "threejs",
+        "arcade",
+        "auth",
+        "leaderboard",
+        "3d",
+        "physics"
+      ],
+      "capabilities": [
+        "auth",
+        "leaderboard",
+        "publish"
+      ],
+      "status": "active",
+      "templatePath": "templates/flight-simulator-v1",
+      "recommendedPrompt": "Use template 'flight-simulator-v1' — but change the aircraft model, ring visuals, and overall theme to something new.",
+      "thumbnail": "/images/thumbnails/flight-simulator-v1.png",
+      "demoPlayLink": "https://worlds.viverse.com/BLJwpWu",
+      "demoAppId": "vpu4d5rqa7"
+    }
+    ,{
+      "id": "gaussian-splat-library-v1",
+      "name": "Gaussian Splat Library",
+      "version": "1.0.0",
+      "genre": "3D Viewer / Utility",
+      "description": "Interactive 3D prop library and scene composer with Gaussian splat support. Upload GLB or PLY worlds, walk around them in first-person, generate AI-textured props via Meshy, and compose scenes with automatic PLY collision mesh generation.",
+      "tags": [
+        "3d",
+        "gaussian-splat",
+        "viewer",
+        "meshy",
+        "physics",
+        "threejs",
+        "utility",
+        "fps"
+      ],
+      "capabilities": [
+        "publish"
+      ],
+      "status": "active",
+      "templatePath": "templates/gaussian-splat-library-v1",
+      "recommendedPrompt": "Use template 'gaussian-splat-library-v1' to build a 3D scene viewer or prop composer. You can customise the scene background, default lighting, sidebar controls, and Meshy generation defaults. Do not modify vite.config.js or the src/collision/ pipeline.",
+      "thumbnail": null,
+      "demoPlayLink": null,
+      "demoAppId": null
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "lapsToFinish": 3,
+  "leaderboardName": "starter-kit-racing-time",
+  "randomLoop": {
+    "enabled": true,
+    "allowDuringRace": true
+  }
+}

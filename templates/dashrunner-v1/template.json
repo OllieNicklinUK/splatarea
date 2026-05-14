@@ -1,0 +1,106 @@
+{
+  "id": "dashrunner-v1",
+  "version": "1.0.0",
+  "buildConfig": {
+    "required": true,
+    "type": "bundled",
+    "command": "npm run build",
+    "publishSource": "dist"
+  },
+  "upstream": {
+    "sourceType": "internal",
+    "sourceRoot": "template-sources/viverse-multiplayer-runner/app"
+  },
+  "capabilities": ["auth", "leaderboard", "matchmaking", "publish"],
+  "immutablePaths": [
+    ".gitignore",
+    "package.json",
+    "package-lock.json",
+    "vite.config.js",
+    "js/viverse/**",
+    "js/viverseApp.js",
+    "js/viverseAuth.js",
+    "js/viverseConfig.js",
+    "js/viverseLeaderboard.js",
+    "js/viverseMultiplayer.js",
+    "js/viverseRemotePlayer.js",
+    "js/main.js"
+  ],
+  "editablePaths": [
+    "index.html",
+    "assets.html",
+    "css/**",
+    "assets/**",
+    "public/**",
+    "js/editor/**",
+    "js/effects/**",
+    "js/game/**",
+    "game-config.json",
+    "README.md",
+    "TEMPLATE.md",
+    "scenario.schema.json"
+  ],
+  "injectionHooks": [
+    {
+      "hookId": "auth-bootstrap",
+      "file": "js/viverseAuth.js",
+      "functionOrRegion": "ViverseAuthController.initialize/checkAuth",
+      "purpose": "VIVERSE auth bootstrap and resilient profile/avatar recovery",
+      "required": true
+    },
+    {
+      "hookId": "leaderboard-client",
+      "file": "js/viverseLeaderboard.js",
+      "functionOrRegion": "ViverseLeaderboardController.initialize",
+      "purpose": "gameDashboard leaderboard submit/fetch flow",
+      "required": true
+    },
+    {
+      "hookId": "matchmaking-room-lifecycle",
+      "file": "js/viverseMultiplayer.js",
+      "functionOrRegion": "ViverseMultiplayerController",
+      "purpose": "Room discovery, join, create, leave, and host start lifecycle",
+      "required": true
+    },
+    {
+      "hookId": "gameplay-loop",
+      "file": "js/game/Gameplay.js",
+      "functionOrRegion": "Gameplay.onInject/onStart/onUpdate/checkCollisions",
+      "purpose": "Runner rules, progression, collisions, hit feedback, and collectible effects",
+      "required": true
+    },
+    {
+      "hookId": "local-player-avatar-runtime",
+      "file": "js/game/Player.js",
+      "functionOrRegion": "Player.loadModel/update/getCollisionBox",
+      "purpose": "Avatar model load flow, VRM/VRMA animation setup, and player physics/collision state",
+      "required": true
+    }
+  ],
+  "requiredGates": ["build.app_id_propagation"],
+  "compliancePaths": {
+    "authFiles": [
+      "js/viverseAuth.js",
+      "js/viverseConfig.js"
+    ],
+    "matchmakingHooks": [
+      "js/viverseMultiplayer.js"
+    ],
+    "startupFiles": [
+      "index.html",
+      "js/main.js"
+    ]
+  },
+  "appIdPropagation": {
+    "strategy": "runtime-config-or-hostname",
+    "approvedConfigFiles": [
+      "js/viverseConfig.js"
+    ]
+  },
+  "authPreflightMode": "verify_only",
+  "rulesetSchemaRef": "./scenario.schema.json#/definitions/rulesetRef",
+  "scenarioSchemaRef": "./scenario.schema.json",
+  "enforcement": {
+    "defaultMode": "enforce"
+  }
+}

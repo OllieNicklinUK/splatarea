@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Kingshot Archer</title>
+    <script src="https://www.viverse.com/static-assets/viverse-sdk/index.umd.cjs"></script>
+    <script>
+      window.__ARCHER_CONFIG__ = {
+        clientId: "YOUR_APP_ID",
+        leaderboardName: "archer-high-score",
+        versionName: "0.1.0-single-player"
+      };
+    </script>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0e1a; }
+      #app { width: 100%; height: 100%; position: relative; }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

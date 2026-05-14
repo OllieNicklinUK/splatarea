@@ -1,0 +1,105 @@
+{
+  "id": "battletanks-v1",
+  "version": "1.0.0",
+  "upstream": {
+    "repo": "https://github.com/EGalahad/BattleTanks",
+    "commit": "2d0221f6470c15b9af67ab9e20d88848f1b58048",
+    "sourceType": "threejs-typescript"
+  },
+  "capabilities": [
+    "auth",
+    "leaderboard",
+    "publish",
+    "r3f"
+  ],
+  "immutablePaths": [
+    "core-engine/**",
+    "assets/**",
+    "tests/runtime-gates/**"
+  ],
+  "editablePaths": [
+    "gameplay/**",
+    "adapters/**",
+    "bootstrap/**",
+    "vite.config.ts",
+    "rulesets/**",
+    "TEMPLATE.md",
+    "scenario.schema.json"
+  ],
+  "injectionHooks": [
+    {
+      "hookId": "game-start-auth-gate",
+      "file": "bootstrap/GameManager.start",
+      "functionOrRegion": "GameManager.start()",
+      "purpose": "Auth-gated world bootstrap",
+      "required": true
+    },
+    {
+      "hookId": "player-input-abstraction",
+      "file": "gameplay/input",
+      "functionOrRegion": "IPlayerInput",
+      "purpose": "Input abstraction for keyboard/controller",
+      "required": true
+    },
+    {
+      "hookId": "sync-loop",
+      "file": "adapters/multiplayer/SyncManager",
+      "functionOrRegion": "SyncManager.tick()",
+      "purpose": "Deterministic network sync loop",
+      "required": true
+    }
+  ],
+  "requiredGates": [
+    "static.immutable_path_violation",
+    "static.required_hooks_present",
+    "build.app_id_propagation",
+    "build.sdk_auth_domain_checks",
+    "runtime.preview_probe_evidence",
+    "runtime.auth_profile_pass"
+  ],
+  "compliancePaths": {
+    "authFiles": [
+      "adapters/auth/ViverseAuthService.ts",
+      "gameplay/hooks/useViverseAuth.js",
+      "src/hooks/useViverseAuth.js"
+    ],
+    "matchmakingHooks": [],
+    "startupFiles": [
+      "bootstrap/main.ts",
+      "bootstrap/upstream-src/main.ts"
+    ]
+  },
+  "buildConfig": {
+    "command": "npx vite build",
+    "outputDir": "dist",
+    "entryHtml": "index.html"
+  },
+  "rulesetSchemaRef": "./scenario.schema.json#/definitions/rulesetRef",
+  "scenarioSchemaRef": "./scenario.schema.json",
+  "baselineMapRef": "./gameplay/maze-layout.json",
+  "stylePipeline": {
+    "tailwindRequiredWhenUtilityClassesPresent": true,
+    "postcssRequired": true
+  },
+  "enforcement": {
+    "defaultMode": "enforce"
+  },
+  "certification": {
+    "requiredFiles": [
+      ".env.example",
+      "index.html",
+      "package.json",
+      "vite.config.ts",
+      "bootstrap/ViverseConfig.ts",
+      "bootstrap/ViverseDiagnostic.ts",
+      "bootstrap/main.ts",
+      "bootstrap/upstream-src/main.ts",
+      "bootstrap/upstream-src/World.ts",
+      "bootstrap/upstream-src/lights.ts",
+      "adapters/auth/ViverseAuthService.ts",
+      "gameplay/upstream-src/BaseObject.ts",
+      "gameplay/upstream-src/Ground.ts",
+      "gameplay/upstream-src/Wall.ts"
+    ]
+  }
+}

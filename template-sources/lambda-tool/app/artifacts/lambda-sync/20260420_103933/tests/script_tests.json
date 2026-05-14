@@ -1,0 +1,10 @@
+[
+  {
+    "event_name": "prices_event",
+    "script_path": "lambda/prices_event.js",
+    "script_present": true,
+    "hash_match": true,
+    "remote_hash": "1a5e381da4c23f5204c3dac806cabd010231f1d8a9a750af2e45546669b60cc5",
+    "local_hash": "1a5e381da4c23f5204c3dac806cabd010231f1d8a9a750af2e45546669b60cc5"
+  }
+]

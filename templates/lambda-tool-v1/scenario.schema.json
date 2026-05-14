@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "lambda-tool-v1 scenario",
+  "type": "object",
+  "required": ["templateId", "rulesetId"],
+  "properties": {
+    "templateId": { "type": "string", "const": "lambda-tool-v1" },
+    "rulesetId": { "$ref": "#/definitions/rulesetRef" },
+    "appName": { "type": "string", "description": "Display name for the tool app" },
+    "lambdaEvents": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "List of lambda event names this app uses e.g. ['weather_event', 'prices_event']"
+    }
+  },
+  "definitions": {
+    "rulesetRef": {
+      "type": "string",
+      "enum": ["default", "read-only", "refresh-interval"]
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,770 @@
+/* ===================================
+   CRAZY NONNA - Game Styles
+   =================================== */
+
+:root {
+    /* Italian-inspired color palette */
+    --nonna-red: #C41E3A;
+    --nonna-green: #009246;
+    --nonna-gold: #F4C430;
+    --nonna-cream: #FFF8DC;
+    --nonna-brown: #8B4513;
+    --nonna-dark: #1a1a2e;
+    --nonna-purple: #4a1942;
+
+    /* UI Colors */
+    --ui-bg: rgba(26, 26, 46, 0.85);
+    --ui-border: rgba(255, 255, 255, 0.1);
+    --ui-glow: rgba(244, 196, 48, 0.5);
+
+    /* Typography */
+    --font-display: 'Fredoka One', cursive;
+    --font-body: 'Nunito', sans-serif;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    overflow: hidden;
+    background: var(--nonna-dark);
+    font-family: var(--font-body);
+}
+
+/* ===================================
+   GAME CONTAINER
+   =================================== */
+
+#game-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+}
+
+#game-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+/* ===================================
+   UI OVERLAY
+   =================================== */
+
+#ui-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Score Display */
+#score-display {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+}
+
+#score {
+    font-family: var(--font-display);
+    font-size: 48px;
+    color: white;
+    text-shadow:
+        0 0 10px var(--nonna-gold),
+        0 0 20px var(--nonna-gold),
+        2px 2px 0 var(--nonna-dark);
+    letter-spacing: 2px;
+}
+
+#score-label {
+    font-size: 12px;
+    color: var(--nonna-gold);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+}
+
+/* Lives Display */
+#lives-display {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    display: flex;
+    gap: 8px;
+}
+
+.heart {
+    font-size: 48px;
+    filter: drop-shadow(0 0 8px var(--nonna-red)) drop-shadow(0 0 15px var(--nonna-red));
+    transition: all 0.3s ease;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.heart.lost {
+    filter: grayscale(1) opacity(0.3);
+    transform: scale(0.8);
+}
+
+.heart.pulse {
+    animation: heartPulse 0.3s ease-out;
+}
+
+@keyframes heartPulse {
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.3);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Speed Display */
+#speed-display {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    text-align: right;
+}
+
+#speed-bar {
+    width: 120px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+#speed-fill {
+    width: 20%;
+    height: 100%;
+    background: linear-gradient(90deg, var(--nonna-green), var(--nonna-gold), var(--nonna-red));
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+#speed-label {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.6);
+    letter-spacing: 2px;
+    margin-top: 4px;
+}
+
+/* Boost Bar */
+#boost-display {
+    position: absolute;
+    top: 50px;
+    right: 20px;
+    text-align: right;
+}
+
+#boost-bar {
+    width: 120px;
+    height: 12px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 6px;
+    overflow: hidden;
+    border: 2px solid rgba(0, 200, 255, 0.5);
+    box-shadow: 0 0 10px rgba(0, 200, 255, 0.3), inset 0 0 10px rgba(0, 0, 0, 0.5);
+}
+
+#boost-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #00ffff, #00ff88, #ffff00);
+    border-radius: 4px;
+    transition: width 0.2s ease;
+    box-shadow: 0 0 15px rgba(0, 255, 200, 0.8);
+    animation: boostPulse 1s ease-in-out infinite;
+}
+
+@keyframes boostPulse {
+
+    0%,
+    100% {
+        opacity: 0.9;
+    }
+
+    50% {
+        opacity: 1;
+    }
+}
+
+#boost-fill.full {
+    background: linear-gradient(90deg, #ffff00, #ff8800, #ff0000);
+    animation: boostReady 0.3s ease-in-out infinite;
+}
+
+@keyframes boostReady {
+
+    0%,
+    100% {
+        box-shadow: 0 0 15px rgba(255, 200, 0, 0.8);
+    }
+
+    50% {
+        box-shadow: 0 0 25px rgba(255, 150, 0, 1);
+    }
+}
+
+#boost-label {
+    font-size: 10px;
+    color: #00ffff;
+    letter-spacing: 2px;
+    margin-top: 4px;
+    text-shadow: 0 0 5px #00ffff;
+}
+
+/* Combo Display */
+#combo-display {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    animation: comboPopIn 0.5s ease-out;
+}
+
+#combo-display.hidden {
+    display: none;
+}
+
+#combo-text {
+    font-family: var(--font-display);
+    font-size: 36px;
+    color: var(--nonna-gold);
+    text-shadow: 0 0 20px var(--nonna-gold);
+    display: block;
+}
+
+/* List Panel Styles */
+#leaderboard-list, #lobby-list {
+    list-style: none;
+    padding: 0;
+    margin: 15px 0;
+    max-height: 300px;
+    overflow-y: auto;
+    width: 100%;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.2);
+}
+
+#leaderboard-list li, #lobby-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 15px;
+    border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+    font-size: 1.2rem;
+    color: white;
+}
+
+#leaderboard-list li:last-child, #lobby-list li:last-child {
+    border-bottom: none;
+}
+
+.leaderboard-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 15px;
+    background: #bdc3c7;
+    object-fit: cover;
+}
+
+.leaderboard-rank {
+    font-weight: 900;
+    font-size: 1.4rem;
+    color: #f1c40f;
+    min-width: 40px;
+}
+
+.leaderboard-name {
+    flex-grow: 1;
+    text-align: left;
+    font-family: 'Nunito', sans-serif;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.leaderboard-score {
+    font-weight: 900;
+    color: #00cec9;
+    font-size: 1.4rem;
+}
+
+#combo-multiplier {
+    font-family: var(--font-display);
+    font-size: 48px;
+    color: white;
+    text-shadow:
+        0 0 10px var(--nonna-red),
+        0 0 20px var(--nonna-red);
+}
+
+@keyframes comboPopIn {
+    0% {
+        transform: translate(-50%, -50%) scale(0.5);
+        opacity: 0;
+    }
+
+    50% {
+        transform: translate(-50%, -50%) scale(1.2);
+    }
+
+    100% {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+    }
+}
+
+/* Theme Display */
+#theme-display {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.5);
+    padding: 8px 16px;
+    border-radius: 20px;
+    backdrop-filter: blur(5px);
+}
+
+#theme-name {
+    font-family: var(--font-display);
+    font-size: 14px;
+    color: var(--nonna-gold);
+    margin-right: 8px;
+}
+
+#theme-hint {
+    font-size: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ===================================
+   SCREENS (Start, Game Over, Pause)
+   =================================== */
+
+.screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg,
+            var(--nonna-dark) 0%,
+            var(--nonna-purple) 50%,
+            var(--nonna-dark) 100%);
+    z-index: 100;
+    transition: opacity 0.5s ease, visibility 0.5s ease;
+}
+
+.screen.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.screen-content {
+    text-align: center;
+    color: white;
+    padding: 40px;
+}
+
+.game-title {
+    font-family: var(--font-display);
+    font-size: 72px;
+    color: var(--nonna-gold);
+    text-shadow:
+        4px 4px 0 var(--nonna-red),
+        8px 8px 0 var(--nonna-dark),
+        0 0 30px var(--nonna-gold);
+    margin-bottom: 10px;
+    letter-spacing: 4px;
+    animation: titleFloat 3s ease-in-out infinite;
+}
+
+@keyframes titleFloat {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.subtitle {
+    font-size: 24px;
+    color: var(--nonna-cream);
+    margin-bottom: 30px;
+}
+
+.nonna-art {
+    font-size: 120px;
+    margin: 30px 0;
+    animation: nonnaWalk 0.5s steps(2) infinite;
+}
+
+@keyframes nonnaWalk {
+    0% {
+        transform: translateX(-5px) rotate(-5deg);
+    }
+
+    50% {
+        transform: translateX(5px) rotate(5deg);
+    }
+
+    100% {
+        transform: translateX(-5px) rotate(-5deg);
+    }
+}
+
+.controls-info {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin: 30px 0;
+    flex-wrap: wrap;
+}
+
+.control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--nonna-cream);
+}
+
+.key {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    background: var(--ui-bg);
+    border: 2px solid var(--nonna-gold);
+    border-radius: 8px;
+    font-family: var(--font-display);
+    font-size: 18px;
+    color: var(--nonna-gold);
+    box-shadow: 0 4px 0 var(--nonna-brown);
+}
+
+.webcam-control {
+    margin-top: 15px;
+    padding: 10px 20px;
+    background: linear-gradient(135deg, rgba(0, 255, 255, 0.2), rgba(0, 255, 136, 0.1));
+    border: 2px solid #00ffff;
+    border-radius: 12px;
+    animation: webcamPulse 2s ease-in-out infinite;
+}
+
+.webcam-control .key {
+    border-color: #00ffff;
+    color: #00ffff;
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
+}
+
+@keyframes webcamPulse {
+
+    0%,
+    100% {
+        box-shadow: 0 0 10px rgba(0, 255, 255, 0.3);
+    }
+
+    50% {
+        box-shadow: 0 0 20px rgba(0, 255, 255, 0.6);
+    }
+}
+
+.game-button {
+    font-family: var(--font-display);
+    font-size: 24px;
+    padding: 16px 48px;
+    background: linear-gradient(180deg, var(--nonna-red) 0%, #8B0000 100%);
+    color: white;
+    border: none;
+    border-radius: 50px;
+    cursor: pointer;
+    box-shadow:
+        0 6px 0 #5c0000,
+        0 10px 20px rgba(0, 0, 0, 0.3);
+    transition: all 0.1s ease;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-top: 20px;
+}
+
+.game-button:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        0 8px 0 #5c0000,
+        0 12px 25px rgba(0, 0, 0, 0.4);
+}
+
+.game-button:active {
+    transform: translateY(4px);
+    box-shadow:
+        0 2px 0 #5c0000,
+        0 5px 10px rgba(0, 0, 0, 0.3);
+}
+
+.high-score {
+    margin-top: 30px;
+    color: rgba(255, 255, 255, 0.6);
+    font-size: 16px;
+}
+
+.high-score span {
+    color: var(--nonna-gold);
+    font-family: var(--font-display);
+}
+
+/* Game Over Screen */
+.game-over-title {
+    font-family: var(--font-display);
+    font-size: 64px;
+    color: var(--nonna-red);
+    text-shadow:
+        4px 4px 0 var(--nonna-dark),
+        0 0 30px var(--nonna-red);
+    animation: shake 0.5s ease-out;
+}
+
+@keyframes shake {
+
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+
+    20% {
+        transform: translateX(-10px) rotate(-2deg);
+    }
+
+    40% {
+        transform: translateX(10px) rotate(2deg);
+    }
+
+    60% {
+        transform: translateX(-10px) rotate(-2deg);
+    }
+
+    80% {
+        transform: translateX(10px) rotate(2deg);
+    }
+}
+
+.final-score-label {
+    color: var(--nonna-cream);
+    margin-top: 20px;
+}
+
+.final-score {
+    font-family: var(--font-display);
+    font-size: 80px;
+    color: var(--nonna-gold);
+    text-shadow: 0 0 30px var(--nonna-gold);
+}
+
+.new-record {
+    font-size: 24px;
+    color: var(--nonna-gold);
+    animation: recordPulse 1s ease-in-out infinite;
+}
+
+/* Global Hidden Utility */
+.hidden {
+    display: none !important;
+}
+
+@keyframes recordPulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.1);
+    }
+}
+
+/* Pause Screen */
+#pause-screen h1 {
+    font-family: var(--font-display);
+    font-size: 48px;
+}
+
+/* ===================================
+   RESPONSIVE
+   =================================== */
+
+@media (max-width: 768px) {
+    .game-title {
+        font-size: 48px;
+    }
+
+    #score {
+        font-size: 36px;
+    }
+
+    .nonna-art {
+        font-size: 80px;
+    }
+
+    .controls-info {
+        gap: 15px;
+    }
+
+    .key {
+        width: 32px;
+        height: 32px;
+        font-size: 14px;
+    }
+}
+
+/* ===================================
+   FLASH EFFECTS
+   =================================== */
+
+.flash-red {
+    animation: flashRed 0.3s ease-out;
+}
+
+@keyframes flashRed {
+    0% {
+        filter: brightness(1);
+    }
+
+    50% {
+        filter: brightness(2) sepia(1) saturate(10) hue-rotate(-30deg);
+    }
+
+    100% {
+        filter: brightness(1);
+    }
+}
+
+.flash-gold {
+    animation: flashGold 0.3s ease-out;
+}
+
+@keyframes flashGold {
+    0% {
+        filter: brightness(1);
+    }
+
+    50% {
+        filter: brightness(1.5) sepia(1) saturate(3);
+    }
+
+    100% {
+        filter: brightness(1);
+    }
+}
+
+/* Purple flash for wine */
+.flash-purple {
+    animation: flashPurple 0.3s ease-out;
+}
+
+@keyframes flashPurple {
+    0% {
+        filter: brightness(1);
+    }
+
+    50% {
+        filter: brightness(1.3) hue-rotate(260deg) saturate(2);
+    }
+
+    100% {
+        filter: brightness(1);
+    }
+}
+
+/* Green flash for extra life */
+.flash-green {
+    animation: flashGreen 0.5s ease-out;
+}
+
+@keyframes flashGreen {
+    0% {
+        filter: brightness(1);
+    }
+
+    50% {
+        filter: brightness(1.5) saturate(2) hue-rotate(80deg);
+    }
+
+    100% {
+        filter: brightness(1);
+    }
+}
+
+/* Wine slowdown visual effect */
+.wine-slowdown {
+    animation: wineEffect 0.5s ease-in-out infinite;
+}
+
+.wine-slowdown::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(128, 0, 128, 0.2) 100%);
+    pointer-events: none;
+    z-index: 5;
+}
+
+@keyframes wineEffect {
+
+    0%,
+    100% {
+        filter: saturate(1.2) hue-rotate(5deg);
+    }
+
+    50% {
+        filter: saturate(1.4) hue-rotate(-5deg);
+    }
+}
+
+/* Pizza Counter Display */
+#pizza-counter {
+    position: absolute;
+    top: 80px;
+    left: 20px;
+    font-family: var(--font-display);
+    font-size: 24px;
+    color: var(--nonna-gold);
+    text-shadow: 0 0 10px var(--nonna-gold), 2px 2px 0 var(--nonna-dark);
+    background: var(--ui-bg);
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: 2px solid var(--nonna-gold);
+    backdrop-filter: blur(5px);
+}

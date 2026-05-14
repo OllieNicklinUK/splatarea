@@ -1,0 +1,10 @@
+{
+  "id": "default",
+  "name": "RedPointFish Default",
+  "description": "Baseline multiplayer + single-player poker flow with VIVERSE auth and matchmaking",
+  "settings": {
+    "mode": "multiplayer-first",
+    "allowSinglePlayer": true,
+    "leaderboardEnabled": true
+  }
+}

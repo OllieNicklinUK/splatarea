@@ -1,0 +1,67 @@
+{
+  "id": "starter-kit-racing-v1",
+  "version": "1.0.0",
+  "upstream": {
+    "sourceType": "internal"
+  },
+  "capabilities": ["auth", "leaderboard", "publish"],
+  "buildConfig": {
+    "required": false,
+    "type": "static",
+    "command": null,
+    "publishSource": "."
+  },
+  "immutablePaths": [
+    "js/Vehicle.js",
+    "js/Camera.js",
+    "js/Controls.js",
+    "js/Track.js",
+    "js/Physics.js",
+    "js/Particles.js",
+    "js/Audio.js",
+    "js/randomLoop.js",
+    "js/RaceManager.js",
+    "js/ViverseAuthController.js",
+    "js/LeaderboardPanel.js",
+    "js/viverseConfig.js"
+  ],
+  "editablePaths": [
+    "index.html",
+    "editor.html",
+    "js/main.js",
+    "audio/**",
+    "models/**",
+    "sprites/**",
+    "rulesets/**",
+    "README.md",
+    "TEMPLATE.md",
+    "scenario.schema.json",
+    ".env.example"
+  ],
+  "injectionHooks": [
+    {
+      "hookId": "auth-bootstrap",
+      "file": "js/ViverseAuthController.js",
+      "functionOrRegion": "initialize",
+      "purpose": "VIVERSE auth bootstrap with profile fallback chain",
+      "required": true
+    },
+    {
+      "hookId": "random-loop-generation",
+      "file": "js/randomLoop.js",
+      "functionOrRegion": "generateRandomLoopCells",
+      "purpose": "Closed-loop random track generation before and during gameplay",
+      "required": true
+    }
+  ],
+  "appIdPropagation": {
+    "strategy": "runtime-config-or-hostname",
+    "approvedConfigFiles": ["js/viverseConfig.js"]
+  },
+  "requiredGates": [],
+  "rulesetSchemaRef": "./scenario.schema.json#/definitions/rulesetRef",
+  "scenarioSchemaRef": "./scenario.schema.json",
+  "enforcement": {
+    "defaultMode": "enforce"
+  }
+}

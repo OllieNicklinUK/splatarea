@@ -1,0 +1,33 @@
+{
+  "name": "web-player-threejs-example",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "node --max-http-header-size=1048576 node_modules/.bin/vite"
+  },
+  "type": "module",
+  "dependencies": {
+    "@mkkellogg/gaussian-splats-3d": "^0.4.7",
+    "@pixiv/three-vrm": "^3.5.1",
+    "@pmndrs/viverse": "file:viverse-main/packages/viverse",
+    "@polygon-streaming/web-player-threejs": "2.8.0",
+    "@sparkjsdev/spark": "^0.1.10",
+    "@takram/three-atmosphere": "^0.18.0",
+    "@takram/three-clouds": "^0.7.4",
+    "@takram/three-geospatial": "^0.8.0",
+    "@takram/three-geospatial-effects": "^0.6.2",
+    "3d-tiles-renderer": "^0.4.4",
+    "gsap": "^3.15.0",
+    "lil-gui": "^0.21.0",
+    "mersennetwister": "^0.2.3",
+    "postprocessing": "^6.39.1",
+    "sass": "^1.99.0",
+    "three": "^0.184.0",
+    "three-mesh-bvh": "^0.9.9",
+    "three-perf": "^1.0.11",
+    "vite-plugin-glsl": "^1.6.0"
+  },
+  "devDependencies": {
+    "vite": "^5.3.3",
+    "vite-plugin-static-copy": "^1.0.6"
+  }
+}

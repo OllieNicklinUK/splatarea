@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["templateId", "rulesetId"],
+  "properties": {
+    "templateId": {
+      "type": "string",
+      "const": "gaussian-splat-library-v1"
+    },
+    "rulesetId": {
+      "type": "string",
+      "enum": ["default"]
+    },
+    "sceneTitle": {
+      "type": "string",
+      "description": "Title shown in the browser tab and page header"
+    },
+    "defaultSplatPath": {
+      "type": "string",
+      "description": "Relative path under public/ to a .ply splat loaded on startup (e.g. splats/scene.ply)"
+    },
+    "defaultModelPath": {
+      "type": "string",
+      "description": "Relative path under public/ to a .glb model loaded on startup"
+    },
+    "backgroundColor": {
+      "type": "string",
+      "description": "Three.js hex colour for the scene background (e.g. #1a1a24)"
+    },
+    "enableWalkMode": {
+      "type": "boolean",
+      "description": "Whether first-person walk mode is enabled by default (true) or orbit-only (false)"
+    }
+  },
+  "definitions": {
+    "rulesetRef": {
+      "type": "string",
+      "enum": ["default"]
+    }
+  }
+}

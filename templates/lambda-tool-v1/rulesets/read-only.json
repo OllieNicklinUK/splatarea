@@ -1,0 +1,10 @@
+{
+  "id": "read-only",
+  "name": "Read Only",
+  "description": "Display-only tool — data is fetched and shown but user cannot submit or mutate state.",
+  "authRequired": true,
+  "mobileFirst": true,
+  "iframeEmbeddable": true,
+  "refreshIntervalSeconds": 0,
+  "readOnly": true
+}

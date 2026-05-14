@@ -1,0 +1,43 @@
+{
+  "id": "gaussian-splat-library-v1",
+  "version": "1.0.0",
+  "buildConfig": {
+    "required": true,
+    "type": "bundled",
+    "command": "npm run build",
+    "outputDir": "dist",
+    "publishSource": "dist",
+    "entryHtml": "index.html"
+  },
+  "immutablePaths": [
+    "vite.config.js",
+    "scripts/ply-voxelizer.mjs",
+    "src/collision/client-collider.js",
+    "src/collision/gpu-voxelize.js",
+    "src/collision/ply-reader.js",
+    "src/collision/sparse-voxel-grid.js",
+    "src/collision/voxel-faces.js",
+    "src/collision/block-mask-map.js",
+    "src/collision/flood-fill.js",
+    "src/fps/bvhPhysics.js",
+    "src/fps/physics.js",
+    "src/fps/balls.js"
+  ],
+  "editablePaths": [
+    "index.html",
+    "src/library.js",
+    "src/training/warehouse-assets.js",
+    "public/**",
+    "rulesets/**",
+    "TEMPLATE.md"
+  ],
+  "injectionHooks": [],
+  "appIdPropagation": {
+    "strategy": "runtime-config-or-hostname",
+    "approvedConfigFiles": ["index.html"]
+  },
+  "capabilities": ["publish"],
+  "enforcement": {
+    "defaultMode": "enforce"
+  }
+}

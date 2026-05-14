@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>VIVERSE Poll</title>
+
+    <!-- VIVERSE SDK -->
+    <script src="https://www.viverse.com/static-assets/viverse-sdk/index.umd.cjs"></script>
+    <script src="https://www.viverse.com/static-assets/play-sdk/1.0.1/play-sdk.umd.js"></script>
+
+    <!-- Runtime config — edit appName, clientId, and poll before publish -->
+    <script>
+      window.__APP_CONFIG__ = {
+        clientId: "h9qqqngxrw",
+        appName: "Community Poll",
+        versionName: "2.0.0",
+        // accountId of the user who sees the admin panel. Set to your own accountId.
+        adminAccountId: "",
+        poll: {
+          question: "What feature would you like to see next?",
+          options: [
+            "Leaderboard",
+            "Avatar Customization",
+            "New Game Mode",
+            "Better Mobile UI"
+          ],
+          // Must match leaderboard API names in VIVERSE Studio.
+          // One per option. Data type: Numerical. Update rule: Best. Sort: Descending.
+          leaderboardNames: ["poll-opt-0", "poll-opt-1", "poll-opt-2", "poll-opt-3"]
+        }
+      };
+    </script>
+
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; background: #0d1117; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

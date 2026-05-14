@@ -1,0 +1,99 @@
+{
+  "id": "flight-simulator-v1",
+  "version": "1.0.0",
+  "buildConfig": {
+    "required": true,
+    "type": "bundled",
+    "command": "npm run build",
+    "publishSource": "dist"
+  },
+  "upstream": {
+    "sourceType": "internal",
+    "sourceRoot": "template-sources/flight-simulator/app"
+  },
+  "capabilities": ["auth", "leaderboard", "publish"],
+  "buildConfig": {
+    "required": true,
+    "command": "npm run build",
+    "outputDir": "dist",
+    "publishSource": "dist",
+    "entryHtml": "index.html"
+  },
+  "immutablePaths": [
+    ".gitignore",
+    "package.json",
+    "vite.config.js",
+    "js/viverseAuth.js",
+    "js/viverseLeaderboard.js",
+    "src/core/EventBus.js",
+    "src/core/GameState.js"
+  ],
+  "editablePaths": [
+    "index.html",
+    ".env",
+    "js/viverseConfig.js",
+    "src/main.js",
+    "src/core/Constants.js",
+    "src/core/Game.js",
+    "src/gameplay/**",
+    "src/level/**",
+    "src/systems/**",
+    "src/audio/**",
+    "src/ui/**",
+    "src/components/**",
+    "public/**"
+  ],
+  "injectionHooks": [
+    {
+      "hookId": "auth-bootstrap",
+      "file": "js/viverseAuth.js",
+      "functionOrRegion": "ViverseAuthController.initialize/checkAuth",
+      "purpose": "VIVERSE auth bootstrap with iframe handshake delay and resilient profile recovery",
+      "required": true
+    },
+    {
+      "hookId": "leaderboard-client",
+      "file": "js/viverseLeaderboard.js",
+      "functionOrRegion": "ViverseLeaderboardController.initialize/submitScore",
+      "purpose": "gameDashboard leaderboard submit/fetch flow with idempotent guard",
+      "required": true
+    },
+    {
+      "hookId": "game-loop",
+      "file": "src/core/Game.js",
+      "functionOrRegion": "Game.startGame/animate/onCrash",
+      "purpose": "Three.js render loop, player update, ring collection, crash detection",
+      "required": true
+    },
+    {
+      "hookId": "flight-physics",
+      "file": "src/gameplay/Player.js",
+      "functionOrRegion": "Player.update/buildAircraft",
+      "purpose": "Aircraft pitch/roll/yaw physics, altitude clamping, crash trigger",
+      "required": true
+    }
+  ],
+  "requiredGates": ["build.app_id_propagation"],
+  "compliancePaths": {
+    "authFiles": [
+      "js/viverseAuth.js",
+      "js/viverseConfig.js"
+    ],
+    "startupFiles": [
+      "index.html",
+      "src/main.js"
+    ]
+  },
+  "appIdPropagation": {
+    "strategy": "runtime-config-or-hostname",
+    "approvedConfigFiles": [
+      "index.html"
+    ]
+  },
+  "authPreflightMode": "verify_only",
+  "rulesetSchemaRef": "./scenario.schema.json#/definitions/rulesetRef",
+  "scenarioSchemaRef": "./scenario.schema.json",
+  "enforcement": {
+    "defaultMode": "enforce"
+  }
+}

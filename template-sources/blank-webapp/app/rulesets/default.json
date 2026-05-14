@@ -1,0 +1,8 @@
+{
+  "id": "default",
+  "name": "Default",
+  "description": "Standard utility app profile. Auth optional, app functional without login.",
+  "authRequired": false,
+  "mobileFirst": true,
+  "iframeEmbeddable": true
+}

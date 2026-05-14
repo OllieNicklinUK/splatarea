@@ -1,0 +1,32 @@
+{
+  "templateId": "blank-webapp-v1",
+  "exportedAt": "2026-04-20T01:59:40.151Z",
+  "sourceRoot": "template-sources/blank-webapp/app",
+  "dryRun": false,
+  "contractVersion": "1.1.0",
+  "immutablePaths": [
+    "src/viverseAuth.js",
+    "src/viverseConfig.js",
+    "src/main.js"
+  ],
+  "editablePaths": [
+    "index.html",
+    "src/**",
+    "public/**",
+    "rulesets/**",
+    "README.md",
+    "TEMPLATE.md",
+    "scenario.schema.json",
+    "package.json"
+  ],
+  "injectionHooks": [
+    {
+      "hookId": "auth-bootstrap",
+      "file": "src/viverseAuth.js"
+    },
+    {
+      "hookId": "app-entry",
+      "file": "src/main.js"
+    }
+  ]
+}

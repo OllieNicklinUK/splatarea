@@ -1,0 +1,8 @@
+{
+  "id": "auth-required",
+  "name": "Auth Required",
+  "description": "Gated app profile. Core functionality requires VIVERSE login. Show login wall when unauthenticated.",
+  "authRequired": true,
+  "mobileFirst": true,
+  "iframeEmbeddable": true
+}

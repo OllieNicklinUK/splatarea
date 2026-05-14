@@ -1,0 +1,19 @@
+{
+  "name": "gaussian-splat-library-v1",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "NODE_OPTIONS=--max-http-header-size=16777216 vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "three": "^0.184.0",
+    "@sparkjsdev/spark": "^0.1.10",
+    "three-mesh-bvh": "^0.9.9"
+  },
+  "devDependencies": {
+    "vite": "^5.3.3",
+    "vite-plugin-static-copy": "^1.0.0"
+  }
+}

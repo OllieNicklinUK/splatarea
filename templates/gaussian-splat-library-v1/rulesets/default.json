@@ -1,0 +1,10 @@
+{
+  "id": "default",
+  "name": "Default",
+  "description": "Standard Gaussian splat library with Meshy AI generation and PLY collision pipeline.",
+  "authRequired": false,
+  "mobileFirst": false,
+  "iframeEmbeddable": true,
+  "enableWalkMode": true,
+  "backgroundColor": "#1a1a24"
+}

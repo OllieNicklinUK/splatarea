@@ -1,0 +1,837 @@
+import fs from 'fs/promises';
+import path from 'path';
+import logger from '../utils/logger.js';
+import { execFile, spawn } from 'child_process';
+import { promisify } from 'util';
+import templateEnforcementService from './templates/TemplateEnforcementService.js';
+import templateContractService from './templates/TemplateContractService.js';
+
+class FileService {
+    constructor() {
+        // Base directory for allowed file operations (portable for cloud deployment)
+        this.baseDir = process.env.VIVERSE_PROJECTS_DIR || process.cwd();
+        this.invalidAuthCache = new Map();
+        this.templateContextByWorkspace = new Map();
+        this.templateViolationsByWorkspace = new Map();
+    }
+
+    _redactSensitiveText(input = "") {
+        let text = String(input ?? "");
+        text = text.replace(/(-p\s+)(["']?)([^\s"']+)\2/gi, '$1[REDACTED]');
+        text = text.replace(/(--password(?:=|\s+))(["']?)([^\s"']+)\2/gi, '$1[REDACTED]');
+        text = text.replace(/("password"\s*:\s*")([^"]+)(")/gi, '$1[REDACTED]$3');
+        text = text.replace(/('password'\s*:\s*')([^']+)(')/gi, '$1[REDACTED]$3');
+        text = text.replace(/(PASSWORD=)([^\s]+)/gi, '$1[REDACTED]');
+        return text;
+    }
+
+    _redactCommand(command = "") {
+        return this._redactSensitiveText(command);
+    }
+
+    _extractAuthLoginIdentity(command = "") {
+        const text = String(command || "");
+        if (!/viverse-cli\s+auth\s+login/i.test(text)) return null;
+        const emailMatch = text.match(/(?:^|\s)-e\s+["']?([^\s"']+)["']?/i);
+        const email = emailMatch?.[1] ? emailMatch[1].toLowerCase() : "unknown";
+        return { email };
+    }
+
+    _invalidAuthKey(workingDir = "", email = "") {
+        return `${workingDir}::${String(email).toLowerCase()}`;
+    }
+
+    _normalizeViverseCliCommand(command = "") {
+        let cmd = String(command || "");
+        if (!/viverse-cli/i.test(cmd)) return cmd;
+
+        // Compatibility fix: some CLI versions reject "--type" on app create.
+        cmd = cmd.replace(/(\bviverse-cli\s+app\s+create\b[^;\n\r]*)\s+--type\s+\S+/gi, '$1');
+
+        // viverse-cli app list is interactive in current CLI builds and can block automation loops.
+        // Replace it with a deterministic no-op marker so agent flows don't deadlock on prompts.
+        if (/\bviverse-cli\s+app\s+list\b/i.test(cmd)) {
+            cmd = cmd.replace(
+                /(^|[;&]{1,2})\s*viverse-cli\s+app\s+list\b[^;\n\r]*/gi,
+                '$1 echo "[INFO] Skipped interactive viverse-cli app list in automated run."'
+            );
+        }
+        return cmd;
+    }
+
+    _normalizePortableGrepCommand(command = "") {
+        let cmd = String(command || "");
+        // GNU grep option seen in model outputs; BSD/macOS grep does not support it.
+        cmd = cmd.replace(/\s--all-text\b/gi, '');
+        return cmd;
+    }
+
+    _normalizeScaffoldCommand(command = "", workspacePath = "") {
+        const raw = String(command || "");
+        if (!/(create-vite@latest|create\s+vite@latest)/i.test(raw)) return raw;
+
+        const ctx = this.getWorkspaceTemplateContext(workspacePath || this.baseDir);
+        if (ctx?.contract) {
+            return 'echo "[INFO] Template workspace already initialized; skipping create-vite scaffold." && npm install';
+        }
+
+        const templateMatch = raw.match(/--template\s+([a-z0-9-]+)/i);
+        const template = templateMatch?.[1] || 'react';
+        const wantsTailwind = /tailwindcss|tailwind\s+init|tailwindcss\s+init/i.test(raw);
+        const tmpDir = "__viverse_tmp_app__";
+
+        const parts = [
+            `rm -rf ${tmpDir}`,
+            `npx create-vite@latest ${tmpDir} --template ${template}`,
+            `cp -R ${tmpDir}/. .`,
+            `rm -rf ${tmpDir}`,
+            `npm install`
+        ];
+
+        if (wantsTailwind) {
+            parts.push(`npm install -D tailwindcss@3 postcss autoprefixer`);
+            parts.push(`npx tailwindcss init -p`);
+        }
+
+        return parts.join(' && ');
+    }
+
+    _normalizeTempScaffoldCleanup(command = "") {
+        const raw = String(command || "");
+        if (!/__viverse_tmp_app__/i.test(raw)) return raw;
+        if (!/\bmv\s+__viverse_tmp_app__\/\*/i.test(raw) && !/\brmdir\s+__viverse_tmp_app__/i.test(raw)) {
+            return raw;
+        }
+        // Make cleanup idempotent: if temp folder was already copied/removed by prior normalized
+        // scaffold command, do not fail the run on missing glob paths.
+        return `if [ -d __viverse_tmp_app__ ]; then cp -R __viverse_tmp_app__/. . || true; fi && rm -rf __viverse_tmp_app__`;
+    }
+
+    _normalizeTailwindInitCommand(command = "") {
+        let cmd = String(command || "");
+        if (!/npx\s+tailwindcss\s+init\b/i.test(cmd)) return cmd;
+
+        // Ensure tailwind init uses v3-compatible install command to avoid v4 init failures.
+        cmd = cmd.replace(
+            /npm\s+install\s+-D\s+tailwindcss\s+postcss\s+autoprefixer/gi,
+            'npm install -D tailwindcss@3 postcss autoprefixer'
+        );
+
+        // If init exists but install stanza is missing, prepend one.
+        if (!/tailwindcss@3/i.test(cmd)) {
+            cmd = `npm install -D tailwindcss@3 postcss autoprefixer && ${cmd}`;
+        }
+
+        return cmd;
+    }
+
+    async _normalizeBuildCommand(command = "", workingDir = "") {
+        const raw = String(command || "");
+        if (!/\bnpm\s+run\s+build\b/i.test(raw)) return raw;
+        const ctx = this.getWorkspaceTemplateContext(workingDir || this.baseDir);
+        try {
+            await fs.access(path.join(workingDir, 'package.json'));
+            return raw;
+        } catch {}
+
+        const entryHtml = String(ctx?.contract?.buildConfig?.entryHtml || '').trim();
+        const fallbackBuild = String(ctx?.contract?.buildConfig?.command || '').trim() || 'npx vite build';
+        const entryExists = entryHtml
+            ? await fs.access(path.join(workingDir, entryHtml)).then(() => true).catch(() => false)
+            : false;
+
+        if (entryExists) {
+            return raw.replace(/\bnpm\s+run\s+build\b/i, fallbackBuild);
+        }
+        return raw;
+    }
+
+    _isValidAppId(appId = "") {
+        const v = String(appId || "").trim().toLowerCase();
+        return /^[a-z0-9]{10}$/.test(v) && /\d/.test(v);
+    }
+
+    _extractEnvAppId(envText = "") {
+        const text = String(envText || "");
+        const match = text.match(/(^|\n)\s*VITE_VIVERSE_CLIENT_ID\s*=\s*([a-z0-9]{10})\s*($|\n)/i);
+        const candidate = String(match?.[2] || "").toLowerCase();
+        return this._isValidAppId(candidate) ? candidate : "";
+    }
+
+    _rewriteEnvAppId(envText = "", appId = "") {
+        const text = String(envText || "");
+        const normalized = String(appId || "").toLowerCase();
+        const line = `VITE_VIVERSE_CLIENT_ID=${normalized}`;
+        if (/(^|\n)\s*VITE_VIVERSE_CLIENT_ID\s*=.*($|\n)/i.test(text)) {
+            return text.replace(/(^|\n)\s*VITE_VIVERSE_CLIENT_ID\s*=.*(?=\n|$)/i, `$1${line}`);
+        }
+        return text.endsWith('\n') || text.length === 0 ? `${text}${line}\n` : `${text}\n${line}\n`;
+    }
+
+    async _readAuthoritativeAppIdFromState(workspacePath = "") {
+        const ws = String(workspacePath || "").trim();
+        if (!ws) return "";
+        try {
+            const raw = await fs.readFile(path.join(ws, '.agent_state.json'), 'utf8');
+            const parsed = JSON.parse(raw);
+            const fromState = String(parsed?.runtimeFlags?.appIdAuthority?.value || "").toLowerCase();
+            return this._isValidAppId(fromState) ? fromState : "";
+        } catch {
+            return "";
+        }
+    }
+
+    /**
+     * Resolve and validate path is strictly within the allowed parameter
+     */
+    resolvePath(targetPath, allowedDir = this.baseDir) {
+        let absolutePath;
+        if (path.isAbsolute(targetPath)) {
+            absolutePath = targetPath;
+        } else {
+            absolutePath = path.resolve(allowedDir, targetPath);
+        }
+
+        if (!absolutePath.startsWith(allowedDir)) {
+            throw new Error(`CRITICAL SECURITY ALERT: Path ${targetPath} is strictly forbidden outside of sandbox ${allowedDir}`);
+        }
+        return absolutePath;
+    }
+
+    setWorkspaceTemplateContext(workspacePath, context = null) {
+        const key = String(workspacePath || '').trim();
+        if (!key) return;
+        if (!context || typeof context !== 'object') {
+            this.templateContextByWorkspace.delete(key);
+            return;
+        }
+        this.templateContextByWorkspace.set(key, context);
+    }
+
+    getWorkspaceTemplateContext(workspacePath) {
+        const key = String(workspacePath || '').trim();
+        if (!key) return null;
+        return this.templateContextByWorkspace.get(key) || null;
+    }
+
+    clearWorkspaceTemplateContext(workspacePath) {
+        const key = String(workspacePath || '').trim();
+        if (!key) return;
+        this.templateContextByWorkspace.delete(key);
+    }
+
+    _recordTemplateViolation(workspacePath, violation = {}) {
+        const key = String(workspacePath || '').trim();
+        if (!key) return;
+        const list = this.templateViolationsByWorkspace.get(key) || [];
+        list.push({
+            at: new Date().toISOString(),
+            ...violation
+        });
+        this.templateViolationsByWorkspace.set(key, list);
+    }
+
+    consumeTemplateViolations(workspacePath) {
+        const key = String(workspacePath || '').trim();
+        if (!key) return [];
+        const list = this.templateViolationsByWorkspace.get(key) || [];
+        this.templateViolationsByWorkspace.delete(key);
+        return list;
+    }
+
+    async readFile(filePath, workspacePath) {
+        try {
+            const resolvedPath = this.resolvePath(filePath, workspacePath || this.baseDir);
+            // Guard: block reads on large minified/binary files that provide no
+            // value to the LLM and blow up the context window.
+            const _readBlockedExt = /\.(min\.js|min\.css|wasm|map|png|jpg|jpeg|gif|webp|svg|ttf|woff|woff2|eot|ico|mp3|mp4|ogg|wav|glb|gltf|bin)$/i;
+            const _readBlockedName = /^(playcanvas-stable\.min\.js|playcanvas\.min\.js)$/i;
+            const _baseName = path.basename(resolvedPath);
+            if (_readBlockedExt.test(_baseName) || _readBlockedName.test(_baseName)) {
+                return `[FILE BLOCKED: '${_baseName}' is a binary/minified file that cannot be read. Skip this file and proceed with other tasks.]`;
+            }
+            // Guard: truncate very large files to prevent context overflow.
+            const _MAX_READ_BYTES = 80000; // 80KB — enough for any source file
+            const _stat = await fs.stat(resolvedPath).catch(() => null);
+            // Guard: path doesn't exist — return a soft message so the LLM can
+            // recover rather than receiving a hard tool error / exception.
+            if (!_stat) {
+                return `[FILE NOT FOUND: '${resolvedPath}' does not exist. Check the path and try again, or use listFiles to explore the directory.]`;
+            }
+            // Guard: path is a directory — the LLM should use listFiles instead.
+            if (_stat.isDirectory()) {
+                return `[IS A DIRECTORY: '${resolvedPath}' is a directory, not a file. Use listFiles to list its contents.]`;
+            }
+            const content = await fs.readFile(resolvedPath, 'utf8');
+            if (_stat && _stat.size > _MAX_READ_BYTES) {
+                const _lines = content.split('\n');
+                const _truncated = content.slice(0, _MAX_READ_BYTES);
+                const _lineCount = _lines.length;
+                return `${_truncated}\n\n[TRUNCATED: file is ${Math.round(_stat.size/1024)}KB (${_lineCount} lines). Only first 80KB shown. Do not read the rest — use targeted grep/search instead.]`;
+            }
+            return content;
+        } catch (error) {
+            logger.error(`FileService.readFile Error: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async listFiles(dirPath = '.', workspacePath) {
+        try {
+            const resolvedPath = this.resolvePath(dirPath, workspacePath || this.baseDir);
+            const files = await fs.readdir(resolvedPath, { withFileTypes: true });
+            const _BLOCKED_EXT  = /\.(min\.js|min\.css|wasm|map|png|jpg|jpeg|gif|webp|svg|ttf|woff|woff2|eot|ico|mp3|mp4|ogg|wav|glb|gltf|bin)$/i;
+            const _BLOCKED_NAME = /^(playcanvas-stable\.min\.js|playcanvas\.min\.js)$/i;
+            const results = [];
+            for (const f of files) {
+                const isDir = f.isDirectory();
+                const entry = { name: f.name, isDirectory: isDir, path: path.join(dirPath, f.name) };
+                if (!isDir && (_BLOCKED_EXT.test(f.name) || _BLOCKED_NAME.test(f.name))) {
+                    try {
+                        const st = await fs.stat(path.join(resolvedPath, f.name));
+                        entry.note = `[read-blocked: binary/minified ${Math.round(st.size/1024)}KB — do not attempt to read this file]`;
+                    } catch { entry.note = '[read-blocked: binary/minified — do not attempt to read this file]'; }
+                }
+                results.push(entry);
+            }
+            return results;
+        } catch (error) {
+            if (error && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) {
+                return [];
+            }
+            logger.error(`FileService.listFiles Error: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async writeFile(filePath, content, workspacePath, options = {}) {
+        try {
+            const resolvedPath = this.resolvePath(filePath, workspacePath || this.baseDir);
+            const baseName = path.basename(resolvedPath);
+            let nextContent = String(content ?? "");
+            const skipTemplateEnforcement = !!options?.skipTemplateEnforcement;
+
+            const ws = workspacePath || this.baseDir;
+            const relPath = path.relative(ws, resolvedPath).replace(/\\/g, '/');
+            const isInternalStateFile =
+                relPath === '.agent_state.json' ||
+                relPath === 'run_report.json' ||
+                relPath === '.viverse_lessons.json' ||
+                relPath === 'viverse-resilience-guide.md';
+
+            if (!skipTemplateEnforcement && !isInternalStateFile) {
+                const ctx = this.getWorkspaceTemplateContext(ws);
+                if (ctx?.contract && String(ctx?.enforcementMode || 'enforce').toLowerCase() === 'enforce') {
+                    const decision = templateEnforcementService.evaluateWrite({
+                        contract: ctx.contract,
+                        absolutePath: resolvedPath,
+                        workspacePath: ws
+                    });
+                    if (!decision.allowed && decision.reason === 'immutable_path_violation') {
+                        // Immutable paths are now advisory — warn but allow the write.
+                        // The agent LLM decides whether modification is needed to fulfil the user request.
+                        const violation = {
+                            templateId: String(ctx.templateId || ''),
+                            reason: String(decision.reason || 'template_contract_violation'),
+                            filePath: relPath,
+                            mode: 'warn'
+                        };
+                        this._recordTemplateViolation(ws, violation);
+                        logger.warn(`FileService: writing to high-risk file ${relPath} (listed in immutablePaths) — proceeding as advisory`);
+                    } else if (!decision.allowed) {
+                        const violation = {
+                            templateId: String(ctx.templateId || ''),
+                            reason: String(decision.reason || 'template_contract_violation'),
+                            filePath: relPath,
+                            mode: 'enforce'
+                        };
+                        this._recordTemplateViolation(ws, violation);
+                        throw new Error(`TEMPLATE_CONTRACT_VIOLATION: ${violation.reason}: ${violation.filePath}`);
+                    }
+
+                    // SUBSYSTEM SCOPE ENFORCEMENT — disabled.
+                    // The allowedSubsystems list (e.g. ['ui','assets'] for asset_iteration) was
+                    // too restrictive: geometry/gameplay file edits are legitimate user requests
+                    // and the intent classifier already routes them to the correct scope.
+                    // Re-enable this block if you need hard per-subsystem write isolation:
+                    //
+                    // const allowedSubsystems = Array.isArray(ctx?.requestScope?.allowedSubsystems)
+                    //     ? ctx.requestScope.allowedSubsystems : [];
+                    // if (allowedSubsystems.length) {
+                    //     const subsystem = templateContractService.inferSubsystemForPath(relPath, ctx.contract);
+                    //     const alwaysAllowed = subsystem === 'workflow-artifact' || subsystem === 'general';
+                    //     if (!alwaysAllowed && !allowedSubsystems.includes(subsystem)) {
+                    //         const violation = { templateId: String(ctx.templateId || ''), reason: 'scope_violation',
+                    //             filePath: relPath, subsystem, allowedSubsystems, mode: 'enforce' };
+                    //         this._recordTemplateViolation(ws, violation);
+                    //         throw new Error(`TEMPLATE_SCOPE_VIOLATION: ${subsystem}: ${violation.filePath} not allowed for scope [${allowedSubsystems.join(', ')}]`);
+                    //     }
+                    // }
+
+                    // PLAYCANVAS SCENE JSON GUARD: prevent wholesale replacement of scene entity data.
+                    // Writing 2453710.json (or any PlayCanvas scene JSON) with far fewer entities
+                    // than the original causes a hard crash: "Cannot read properties of undefined (reading 'components')".
+                    // Allow surgical patches (entity count unchanged or increased) but reject full rewrites.
+                    if (/^\d{7}\.json$/.test(baseName)) {
+                        try {
+                            const existingText = await fs.readFile(resolvedPath, 'utf8').catch(() => null);
+                            if (existingText) {
+                                const existing = JSON.parse(existingText);
+                                const incoming = JSON.parse(nextContent);
+                                const existingCount = Object.keys(existing?.entities || {}).length;
+                                const incomingCount = Object.keys(incoming?.entities || {}).length;
+                                // Reject if more than 20% of entities are removed
+                                if (existingCount > 0 && incomingCount < existingCount * 0.8) {
+                                    const violation = {
+                                        templateId: String(ctx.templateId || ''),
+                                        reason: 'scene_entity_count_violation',
+                                        filePath: relPath,
+                                        mode: 'enforce'
+                                    };
+                                    this._recordTemplateViolation(ws, violation);
+                                    throw new Error(
+                                        `SCENE_ENTITY_VIOLATION: ${relPath} has ${incomingCount} entities but original has ${existingCount}. ` +
+                                        `Never replace the whole scene JSON. Use python3 json.load/modify/dump to patch specific fields only.`
+                                    );
+                                }
+                            }
+                        } catch (e) {
+                            if (e.message.startsWith('SCENE_ENTITY_VIOLATION')) throw e;
+                            // JSON parse error or read error — let write proceed, Verifier will catch issues
+                        }
+                    }
+                }
+            }
+
+            // Guardrail: preserve an already-valid App ID in .env files so iterative fix steps
+            // cannot regress previously working publish/auth wiring.
+            if (baseName === '.env') {
+                let existingText = '';
+                try {
+                    existingText = await fs.readFile(resolvedPath, 'utf8');
+                } catch {
+                    existingText = '';
+                }
+
+                const existingId = this._extractEnvAppId(existingText);
+                const incomingId = this._extractEnvAppId(nextContent);
+                const incomingHasVar = /(^|\n)\s*VITE_VIVERSE_CLIENT_ID\s*=/i.test(nextContent);
+                const authorityId = await this._readAuthoritativeAppIdFromState(ws);
+                const canonicalId = existingId || authorityId;
+
+                if (canonicalId && incomingId && incomingId !== canonicalId) {
+                    logger.warn(`FileService.writeFile: preserving authoritative .env App ID '${canonicalId}' over incoming '${incomingId}'.`);
+                    nextContent = this._rewriteEnvAppId(nextContent, canonicalId);
+                } else if (canonicalId && (!incomingId || !incomingHasVar)) {
+                    logger.warn(`FileService.writeFile: restoring missing/invalid VITE_VIVERSE_CLIENT_ID with authoritative '${canonicalId}'.`);
+                    nextContent = this._rewriteEnvAppId(nextContent, canonicalId);
+                }
+            }
+
+            await fs.mkdir(path.dirname(resolvedPath), { recursive: true });
+            await fs.writeFile(resolvedPath, nextContent, 'utf8');
+            return { success: true, path: filePath };
+        } catch (error) {
+            logger.error(`FileService.writeFile Error: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async runCommand(command, cwd, workspacePath) {
+        const { exec } = await import('child_process');
+        const { promisify } = await import('util');
+        const execAsync = promisify(exec);
+
+        try {
+            const activeDir = workspacePath || this.baseDir;
+            let workingDir = cwd ? this.resolvePath(cwd, activeDir) : activeDir;
+            // Guard: if the resolved cwd doesn't exist, fall back to workspace root
+            // to prevent "spawn /bin/sh ENOENT" when the LLM passes a doubled/invalid path.
+            try {
+                const { access } = await import('node:fs/promises');
+                await access(workingDir);
+            } catch {
+                logger.warn(`FileService.runCommand: cwd "${workingDir}" not found, falling back to workspace root "${activeDir}"`);
+                workingDir = activeDir;
+            }
+            const normalizedCommand = this._normalizeViverseCliCommand(
+                this._normalizeTailwindInitCommand(
+                    this._normalizePortableGrepCommand(
+                        this._normalizeTempScaffoldCleanup(
+                            await this._normalizeBuildCommand(
+                                this._normalizeScaffoldCommand(command, workingDir),
+                                workingDir
+                            )
+                        )
+                    )
+                )
+            );
+            const authIdentity = this._extractAuthLoginIdentity(normalizedCommand);
+            if (authIdentity) {
+                const key = this._invalidAuthKey(workingDir, authIdentity.email);
+                if (this.invalidAuthCache.has(key)) {
+                    return {
+                        error: `Authentication failed previously for ${authIdentity.email}. Aborting repeated login attempts in this run.`,
+                        stdout: "",
+                        stderr: "Authentication failed (cached fail-fast).",
+                        fatal: true,
+                        errorCode: "INVALID_CREDENTIALS",
+                        retriable: false
+                    };
+                }
+            }
+
+            logger.info(`Running command: ${this._redactCommand(normalizedCommand)} in ${workingDir}`);
+            
+            // Prepend the agent's Python venv to PATH so commands like
+            // `python3 -c "from PIL import Image; ..."` find Pillow etc.
+            const pythonVenvBin = path.join(process.cwd(), '.python-env', 'bin');
+            const execEnv = { ...process.env };
+            execEnv.PATH = `${pythonVenvBin}:${execEnv.PATH || ''}`;
+
+            // Per-workspace CLI isolation: override HOME so viverse-cli stores
+            // credentials in <workspace>/.viverse-cli/ instead of ~/.viverse-cli/.
+            // This prevents concurrent users from overwriting each other's auth sessions.
+            if (/viverse-cli/i.test(normalizedCommand) && workspacePath) {
+                execEnv.HOME = workspacePath;
+            }
+
+            // Added 2 minute timeout to prevent orphan hanging processes
+            const { stdout, stderr } = await execAsync(normalizedCommand, { 
+                cwd: workingDir,
+                timeout: 120000,
+                maxBuffer: 16 * 1024 * 1024,
+                env: execEnv
+            });
+
+            if (!stdout && !stderr) {
+                return { result: "Command executed successfully but produced no output." };
+            }
+
+            return { stdout: stdout || "", stderr: stderr || "" };
+        } catch (error) {
+            const safeMessage = this._redactSensitiveText(error.message || "");
+
+            // grep exits with code 1 when no matches are found; that is not a runtime failure.
+            const originalCommand = this._normalizeViverseCliCommand(
+                this._normalizeTailwindInitCommand(
+                    this._normalizePortableGrepCommand(
+                        this._normalizeTempScaffoldCleanup(
+                            await this._normalizeBuildCommand(
+                                this._normalizeScaffoldCommand(command, cwd ? this.resolvePath(cwd, workspacePath || this.baseDir) : (workspacePath || this.baseDir)),
+                                cwd ? this.resolvePath(cwd, workspacePath || this.baseDir) : (workspacePath || this.baseDir)
+                            )
+                        )
+                    )
+                )
+            );
+            const isGrepNoMatch =
+                Number(error?.code) === 1 &&
+                /(^|\s)grep(\s|$)/i.test(String(originalCommand || ''));
+            if (isGrepNoMatch) {
+                return {
+                    stdout: error.stdout || "",
+                    stderr: error.stderr || "",
+                    exitCode: 1,
+                    noMatch: true
+                };
+            }
+
+            logger.error(`FileService.runCommand Error: ${safeMessage}`);
+            // Log full error details for debugging
+            if (error.stdout) logger.info(`Final STDOUT: ${this._redactSensitiveText(error.stdout)}`);
+            if (error.stderr) logger.info(`Final STDERR: ${this._redactSensitiveText(error.stderr)}`);
+
+            const authIdentity = this._extractAuthLoginIdentity(this._normalizeViverseCliCommand(command));
+            const stderrText = String(error.stderr || "");
+            const isInvalidCredentials = /credentials you supplied are invalid|authentication failed/i.test(stderrText);
+            if (authIdentity && isInvalidCredentials) {
+                const activeDir = workspacePath || this.baseDir;
+                const workingDir = cwd ? this.resolvePath(cwd, activeDir) : activeDir;
+                this.invalidAuthCache.set(this._invalidAuthKey(workingDir, authIdentity.email), Date.now());
+                return {
+                    error: 'Authentication failed. Please verify your VIVERSE credentials.',
+                    stdout: error.stdout || "",
+                    stderr: this._redactSensitiveText(stderrText),
+                    fatal: true,
+                    errorCode: "INVALID_CREDENTIALS",
+                    retriable: false
+                };
+            }
+            
+            return {
+                error: safeMessage,
+                stdout: error.stdout || "",
+                stderr: this._redactSensitiveText(error.stderr || "")
+            };
+        }
+    }
+
+    async runBackgroundCommand(command, cwd, workspacePath) {
+        const { spawn } = await import('child_process');
+        const activeDir = workspacePath || this.baseDir;
+        const workingDir = cwd ? this.resolvePath(cwd, activeDir) : activeDir;
+        
+        // Generate a simple Job ID based on timestamp
+        const jobId = `job_${Date.now()}`;
+        const logFilePath = path.join(workingDir, `${jobId}.log`);
+        
+        logger.info(`Starting background command [${jobId}]: ${command} in ${workingDir}`);
+
+        try {
+            // Split command and arguments safely (very basic split for demo)
+            const parts = command.match(/(?:[^\s"]+|"[^"]*")+/g).map(p => p.replace(/(^"|"$)/g, ''));
+            const cmd = parts[0];
+            const args = parts.slice(1);
+
+            const child = spawn(cmd, args, { cwd: workingDir, shell: true });
+
+            // Store process info in memory (in a production app, use Redis or similar)
+            if (!this.activeJobs) this.activeJobs = new Map();
+            this.activeJobs.set(jobId, { status: "running", exitCode: null, logFile: logFilePath });
+
+            // Write output to log file
+            const fsModule = await import('fs');
+            const logStream = fsModule.createWriteStream(logFilePath, { flags: 'a' });
+
+            child.stdout.pipe(logStream);
+            child.stderr.pipe(logStream);
+
+            child.on('close', (code) => {
+                logger.info(`Background command [${jobId}] exited with code ${code}`);
+                const job = this.activeJobs.get(jobId);
+                if (job) {
+                    job.status = code === 0 ? "completed" : "failed";
+                    job.exitCode = code;
+                }
+                logStream.end();
+            });
+
+            return { 
+                jobId: jobId, 
+                status: "Started in background", 
+                logFile: `${jobId}.log`,
+                message: "Use checkCommandStatus with this jobId to see progress."
+            };
+        } catch (error) {
+            logger.error(`FileService.runBackgroundCommand Error: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async checkCommandStatus(jobId, cwd, workspacePath) {
+        if (!this.activeJobs || !this.activeJobs.has(jobId)) {
+            return { error: `Job ID ${jobId} not found.` };
+        }
+
+        const job = this.activeJobs.get(jobId);
+        const activeDir = workspacePath || this.baseDir;
+        const workingDir = cwd ? this.resolvePath(cwd, activeDir) : activeDir;
+        const logPath = path.isAbsolute(job.logFile) ? job.logFile : path.join(workingDir, job.logFile);
+
+        try {
+            // Read the last 2000 characters of the log to prevent token overflow
+            const fsModule = await import('fs/promises');
+            const stats = await fsModule.stat(logPath);
+            const size = stats.size;
+            
+            let logContent = "";
+            if (size > 0) {
+                const readSize = Math.min(size, 2000);
+                const buffer = Buffer.alloc(readSize);
+                const fileHandle = await fsModule.open(logPath, 'r');
+                await fileHandle.read(buffer, 0, readSize, size - readSize);
+                await fileHandle.close();
+                logContent = buffer.toString('utf8');
+            }
+
+            return {
+                jobId: jobId,
+                status: job.status,
+                exitCode: job.exitCode,
+                recentLog: logContent || "No output yet."
+            };
+        } catch (error) {
+            logger.error(`Error checking job status: ${error.message}`);
+            return { status: job.status, error: "Could not read log file." };
+        }
+    }
+
+    async addLesson(lesson, workspacePath) {
+        try {
+            const activeWorkspace = String(workspacePath || '').trim();
+            if (!activeWorkspace) {
+                return {
+                    success: false,
+                    error: 'workspacePath required for addLesson'
+                };
+            }
+
+            const lessonsPath = this.resolvePath('.viverse_lessons.json', activeWorkspace);
+            let lessons = [];
+            try {
+                const fsModule = await import('fs/promises');
+                const content = await fsModule.readFile(lessonsPath, 'utf8');
+                lessons = JSON.parse(content);
+            } catch (e) {
+                // File might not exist yet, that's fine
+            }
+            
+            const sanitizedLesson = lesson.replace(/\s*\(Verified\s*\d+\)/g, '').trim();
+            const exists = lessons.some(l => {
+                const sanitizedExisting = l.replace(/\s*\(Verified\s*\d+\)/g, '').trim();
+                return sanitizedExisting === sanitizedLesson;
+            });
+            
+            if (!exists) {
+                lessons.push(lesson);
+                const fsModule = await import('fs/promises');
+                await fsModule.writeFile(lessonsPath, JSON.stringify(lessons, null, 2), 'utf8');
+                logger.info(`FileService: Captured new lesson in ${lessonsPath}`);
+            } else {
+                logger.debug(`FileService: Skipping duplicate lesson: ${sanitizedLesson}`);
+            }
+            return { success: true, lessonCount: lessons.length };
+        } catch (error) {
+            logger.error(`FileService.addLesson Error: ${error.message}`);
+            throw error;
+        }
+    }
+
+    _stripAnsi(text = "") {
+        return String(text)
+            .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '')
+            .replace(/\u001bc/g, '')
+            .replace(/\r/g, '');
+    }
+
+    _parseAppListOutput(rawText = "") {
+        const clean = this._stripAnsi(rawText);
+        const lines = clean.split('\n').map((line) => line.trim());
+        const apps = [];
+
+        for (const line of lines) {
+            if (!line.includes('|')) continue;
+            if (line.startsWith('APP ID')) continue;
+            if (line.startsWith('---')) continue;
+
+            const cols = line.split('|').map((c) => c.trim());
+            if (cols.length < 4) continue;
+
+            const appId = cols[0];
+            const title = cols[1];
+            const state = cols[2];
+            const url = cols[3];
+
+            if (!/^[a-z0-9]{10}$/i.test(appId)) continue;
+            if (!/^https?:\/\//i.test(url)) continue;
+
+            apps.push({
+                appId,
+                title,
+                state,
+                url
+            });
+        }
+
+        return apps;
+    }
+
+    async _execCli(args = [], workspacePath) {
+        const activeDir = workspacePath || this.baseDir;
+        // Per-workspace CLI isolation: override HOME so viverse-cli stores
+        // credentials in <workspace>/.viverse-cli/ instead of ~/.viverse-cli/.
+        const cliEnv = { ...process.env, CI: '1' };
+        if (workspacePath) cliEnv.HOME = workspacePath;
+
+        // viverse-cli app list always shows an interactive pagination menu that
+        // hangs waiting for arrow-key input. Bypass it by using spawn so we can
+        // close stdin immediately — inquirer then emits "User force closed" and
+        // exits with code 1 while still printing all rows to stdout/stderr.
+        const isAppList = args[0] === 'app' && args[1] === 'list';
+        if (isAppList) {
+            return new Promise((resolve, reject) => {
+                let stdout = '';
+                let stderr = '';
+                const proc = spawn('viverse-cli', args, {
+                    cwd: activeDir,
+                    env: cliEnv,
+                    stdio: ['pipe', 'pipe', 'pipe']
+                });
+                // Close stdin immediately so inquirer receives EOF and exits.
+                proc.stdin.end();
+                proc.stdout.on('data', (d) => { stdout += d.toString(); });
+                proc.stderr.on('data', (d) => { stderr += d.toString(); });
+                const kill = setTimeout(() => proc.kill('SIGTERM'), 20000);
+                proc.on('close', (code) => {
+                    clearTimeout(kill);
+                    if (code === 0 || stdout.trim()) {
+                        resolve({ stdout, stderr });
+                    } else {
+                        const err = new Error(`viverse-cli app list exited ${code}`);
+                        err.stdout = stdout;
+                        err.stderr = stderr;
+                        reject(err);
+                    }
+                });
+                proc.on('error', (err) => {
+                    clearTimeout(kill);
+                    err.stdout = stdout;
+                    err.stderr = stderr;
+                    reject(err);
+                });
+            });
+        }
+        const execFileAsync = promisify(execFile);
+        return execFileAsync('viverse-cli', args, {
+            cwd: activeDir,
+            env: cliEnv,
+            timeout: 120000,
+            maxBuffer: 1024 * 1024
+        });
+    }
+
+    async listUserApps(credentials, limit = 50, workspacePath) {
+        if (!credentials?.email || !credentials?.password) {
+            throw new Error('Credentials are required to list account apps');
+        }
+
+        const safeLimit = Math.max(1, Math.min(50, Number(limit) || 50));
+
+        // Always reset auth context first to avoid cross-account leakage.
+        try {
+            await this._execCli(['auth', 'logout'], workspacePath);
+        } catch (_) {
+            // Ignore logout failures (already logged out, etc.)
+        }
+
+        try {
+            logger.info(`Authenticating viverse-cli for app listing: ${credentials.email}`);
+            await this._execCli(['auth', 'login', '-e', credentials.email, '-p', credentials.password], workspacePath);
+        } catch (error) {
+            logger.error(`viverse-cli login failed for app listing: ${error.message}`);
+            throw new Error('Authentication failed. Please verify your VIVERSE credentials.');
+        }
+
+        let combinedOutput = '';
+        try {
+            const { stdout, stderr } = await this._execCli(['app', 'list', '--limit', String(safeLimit)], workspacePath);
+            combinedOutput = `${stdout || ''}\n${stderr || ''}`;
+        } catch (error) {
+            const stdout = error.stdout || '';
+            const stderr = error.stderr || '';
+            combinedOutput = `${stdout}\n${stderr}`;
+            if (!combinedOutput.trim()) {
+                throw new Error(`Failed to list apps: ${error.message}`);
+            }
+        }
+
+        const apps = this._parseAppListOutput(combinedOutput);
+        return {
+            apps,
+            latest: apps[0] || null
+        };
+    }
+}
+
+export default new FileService();

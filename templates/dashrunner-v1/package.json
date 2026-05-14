@@ -1,0 +1,33 @@
+{
+  "name": "dashrunner",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dkatz23/CrazyNonna.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dkatz23/CrazyNonna/issues"
+  },
+  "homepage": "https://github.com/dkatz23/CrazyNonna#readme",
+  "description": "",
+  "devDependencies": {
+    "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "@pixiv/three-vrm": "^3.5.1",
+    "@pixiv/three-vrm-animation": "^3.5.1",
+    "lil-gui": "^0.21.0",
+    "three": "^0.182.0"
+  }
+}

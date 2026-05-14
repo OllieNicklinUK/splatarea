@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "blank-webapp-v1 scenario",
+  "type": "object",
+  "required": ["templateId", "rulesetId"],
+  "properties": {
+    "templateId": { "type": "string", "const": "blank-webapp-v1" },
+    "rulesetId": { "$ref": "#/definitions/rulesetRef" },
+    "appName": { "type": "string", "description": "Display name for the app" },
+    "authRequired": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, gate full app functionality on auth. If false, degrade gracefully."
+    }
+  },
+  "definitions": {
+    "rulesetRef": {
+      "type": "string",
+      "enum": ["default", "auth-required"]
+    }
+  },
+  "additionalProperties": true
+}

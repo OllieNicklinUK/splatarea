@@ -1,0 +1,10 @@
+{
+  "id": "default",
+  "name": "Default",
+  "description": "Standard Lambda tool profile. Data fetched on user action. Auth required.",
+  "authRequired": true,
+  "mobileFirst": true,
+  "iframeEmbeddable": true,
+  "refreshIntervalSeconds": 0,
+  "readOnly": false
+}

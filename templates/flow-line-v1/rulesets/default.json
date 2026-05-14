@@ -1,0 +1,8 @@
+{
+  "id": "default",
+  "name": "Default",
+  "description": "Standard puzzle game profile with auth, leaderboard, and publish capabilities.",
+  "authRequired": true,
+  "mobileFirst": true,
+  "iframeEmbeddable": true
+}

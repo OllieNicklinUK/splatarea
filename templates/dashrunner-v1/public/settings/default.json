@@ -1,0 +1,103 @@
+{
+    "gameplay": {
+        "baseSpeed": 30,
+        "maxSpeed": 40,
+        "speedIncrement": 0.002,
+        "lives": 5,
+        "invulnerableTime": 2000
+    },
+    "player": {
+        "jumpForce": 18,
+        "doubleJumpForce": 14,
+        "gravity": -40,
+        "laneChangeSpeed": 10,
+        "laneWidth": 3,
+        "slideDuration": 0.6,
+        "slideHeight": 0.8,
+        "scale": 3
+    },
+    "chaser": {
+        "scale": 2,
+        "minDistance": -6,
+        "maxDistance": -2,
+        "chaseSpeed": 2,
+        "threatDecay": 0.02,
+        "threatIncrease": 0.2,
+        "bobAmount": 0.1,
+        "bobSpeed": 8,
+        "enabled": false
+    },
+    "camera": {
+        "fov": 75,
+        "positionY": 5,
+        "positionZ": -8,
+        "lookAtY": 2,
+        "lookAtZ": 20,
+        "positionLag": 3,
+        "heightLag": 2,
+        "lookAtLag": 5
+    },
+    "lighting": {
+        "ambientIntensity": 2.8,
+        "ambientColor": "#ffffff",
+        "sunIntensity": 1.8,
+        "sunColor": "#fffacd",
+        "sunX": 30,
+        "sunY": 50,
+        "sunZ": 20,
+        "fillIntensity": 0.4,
+        "fillColor": "#87ceeb",
+        "rimIntensity": 0.3,
+        "rimColor": "#ffd700"
+    },
+    "fog": {
+        "enabled": true,
+        "color": "#87ceeb",
+        "near": 50,
+        "far": 150
+    },
+    "postProcessing": {
+        "exposure": 2,
+        "bloomStrength": 0.1,
+        "bloomRadius": 0.3,
+        "bloomThreshold": 0.9,
+        "vignetteEnabled": true,
+        "vignetteDarkness": 0.4,
+        "enabled": true,
+        "vignetteOffset": 1.2
+    },
+    "obstacles": {
+        "spawnDistance": 80,
+        "minSpawnGap": 15,
+        "poolSize": 30
+    },
+    "collectibles": {
+        "spawnGap": 8,
+        "coinValue": 50,
+        "ravioliValue": 100,
+        "recipeValue": 250
+    },
+    "environment": {
+        "buildingCount": 15,
+        "buildingMinHeight": 6,
+        "buildingMaxHeight": 14,
+        "lampSpacing": 20,
+        "floorRepeatX": 8,
+        "floorRepeatY": 40
+    },
+    "graphics": {
+        "simpleMode": false,
+        "houseScale": 39,
+        "houseXOffset": 20,
+        "houseY": 10.5,
+        "houseRotation": 0
+    },
+    "debug": {
+        "showCollisionBoxes": false,
+        "showFPS": false,
+        "godMode": false,
+        "slowMotion": false,
+        "slowMotionFactor": 0.25
+    },
+    "devMode": false
+}

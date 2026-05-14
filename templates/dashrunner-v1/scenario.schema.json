@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "dashrunner-v1 scenario",
+  "type": "object",
+  "required": ["templateId", "rulesetId"],
+  "properties": {
+    "templateId": { "type": "string", "const": "dashrunner-v1" },
+    "rulesetId": { "$ref": "#/definitions/rulesetRef" },
+    "theme": {
+      "type": "string",
+      "enum": ["city", "forest", "space", "desert"],
+      "default": "city"
+    },
+    "difficulty": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 10,
+      "default": 5
+    },
+    "multiplayerMode": {
+      "type": "boolean",
+      "default": true
+    },
+    "customAssets": {
+      "type": "object",
+      "properties": {
+        "ground": { "type": "string" },
+        "obstacles": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "definitions": {
+    "rulesetRef": {
+      "type": "string",
+      "enum": ["default"]
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,54 @@
+{
+  "obstacles": [
+    {
+      "id": "whiteflag",
+      "name": "White Flag",
+      "type": "obstacle",
+      "modelType": "primitive",
+      "description": "A surrender flag - avoid it!",
+      "points": -10,
+      "effect": "damage"
+    },
+    {
+      "id": "nonna",
+      "name": "Kicking Nonna",
+      "type": "obstacle",
+      "modelType": "fbx",
+      "modelPath": "assets/NonnaKick.fbx",
+      "description": "An angry nonna doing kicks - very dangerous!",
+      "points": -20,
+      "effect": "damage",
+      "animated": true
+    }
+  ],
+  "collectibles": [
+    {
+      "id": "pizza",
+      "name": "Pizza",
+      "type": "collectible",
+      "modelType": "glb",
+      "modelPath": "assets/Pizza.glb",
+      "scale": 0.6,
+      "points": 100,
+      "effect": "score",
+      "description": "Collect 4 pizzas to earn an extra life!"
+    },
+    {
+      "id": "wine",
+      "name": "Wine Bottle",
+      "type": "collectible",
+      "modelType": "glb",
+      "modelPath": "assets/wine.glb",
+      "scale": 0.8,
+      "points": 50,
+      "effect": "slowdown",
+      "duration": 3,
+      "description": "Slows down the game for 3 seconds - makes it easier!"
+    }
+  ],
+  "gameplay": {
+    "pizzasForLife": 4,
+    "wineSlowdownDuration": 3,
+    "wineSlowdownMultiplier": 0.5
+  }
+}

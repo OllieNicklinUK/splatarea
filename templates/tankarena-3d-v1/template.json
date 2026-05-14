@@ -1,0 +1,90 @@
+{
+  "id": "tankarena-3d-v1",
+  "version": "1.0.0",
+  "buildConfig": {
+    "required": true,
+    "type": "bundled",
+    "command": "npm run build",
+    "publishSource": "dist"
+  },
+  "upstream": {
+    "sourceType": "internal",
+    "sourceRoot": "template-sources/tankarena-3d/app"
+  },
+  "capabilities": ["auth", "leaderboard", "matchmaking", "publish"],
+  "immutablePaths": [
+    "package.json",
+    "src/viverseAuth.js",
+    "src/viverseConfig.js",
+    "src/viverseLeaderboard.js",
+    "src/viverseMultiplayer.js",
+    "src/game/modelCache.js",
+    "src/main.js"
+  ],
+  "editablePaths": [
+    "index.html",
+    "src/**",
+    "public/**",
+    "rulesets/**",
+    "README.md",
+    "TEMPLATE.md",
+    "scenario.schema.json"
+  ],
+  "injectionHooks": [
+    {
+      "hookId": "auth-bootstrap",
+      "file": "src/viverseAuth.js",
+      "functionOrRegion": "ViverseAuthController.initialize",
+      "purpose": "VIVERSE auth bootstrap with resilient profile fallback chain",
+      "required": true
+    },
+    {
+      "hookId": "leaderboard-client",
+      "file": "src/viverseLeaderboard.js",
+      "functionOrRegion": "ViverseLeaderboardController.initialize",
+      "purpose": "gameDashboard leaderboard submit/fetch flow",
+      "required": true
+    },
+    {
+      "hookId": "matchmaking-room-lifecycle",
+      "file": "src/viverseMultiplayer.js",
+      "functionOrRegion": "ViverseMultiplayerController",
+      "purpose": "Room discovery, join, create, leave, and host start lifecycle",
+      "required": true
+    },
+    {
+      "hookId": "random-map-generation",
+      "file": "src/game/Arena.js",
+      "functionOrRegion": "Arena.regenerateLayout",
+      "purpose": "Per-round random battlefield generation with protected spawn lanes",
+      "required": true
+    }
+  ],
+  "requiredGates": ["build.app_id_propagation"],
+  "compliancePaths": {
+    "authFiles": [
+      "src/viverseAuth.js",
+      "src/viverseConfig.js"
+    ],
+    "matchmakingHooks": [
+      "src/viverseMultiplayer.js"
+    ],
+    "startupFiles": [
+      "index.html",
+      "src/main.js"
+    ]
+  },
+  "appIdPropagation": {
+    "strategy": "runtime-config-or-hostname",
+    "approvedConfigFiles": [
+      "index.html",
+      "src/viverseConfig.js"
+    ]
+  },
+  "authPreflightMode": "verify_only",
+  "rulesetSchemaRef": "./scenario.schema.json#/definitions/rulesetRef",
+  "scenarioSchemaRef": "./scenario.schema.json",
+  "enforcement": {
+    "defaultMode": "enforce"
+  }
+}

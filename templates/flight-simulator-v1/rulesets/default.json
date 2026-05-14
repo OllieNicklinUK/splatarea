@@ -1,0 +1,11 @@
+{
+  "id": "default",
+  "name": "Default Flight Rules",
+  "description": "Standard flight simulator profile — dusk environment, 15 rings, moderate difficulty.",
+  "environment": "dusk",
+  "difficulty": 5,
+  "ringCount": 15,
+  "authRequired": true,
+  "mobileFirst": false,
+  "iframeEmbeddable": true
+}

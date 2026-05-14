@@ -1,0 +1,56 @@
+{
+  "id": "redpointfish-v1",
+  "version": "1.0.0",
+  "buildConfig": {
+    "required": true,
+    "type": "bundled",
+    "command": "npm run build",
+    "publishSource": "dist"
+  },
+  "upstream": {
+    "sourceType": "workspace-extract",
+    "workspace": "req_1774359378877"
+  },
+  "capabilities": ["auth", "multiplayer", "leaderboard", "publish"],
+  "immutablePaths": [
+    "src/hooks/useViverseAuth.js",
+    "src/hooks/useMultiplayer.js",
+    "src/components/ViverseDiagnostic.jsx"
+  ],
+  "editablePaths": [
+    "src/**",
+    "rulesets/**",
+    "index.html",
+    "vite.config.js",
+    "tailwind.config.js",
+    "TEMPLATE.md",
+    "scenario.schema.json",
+    ".env.example"
+  ],
+  "injectionHooks": [
+    {
+      "hookId": "auth-bootstrap",
+      "file": "src/hooks/useViverseAuth.js",
+      "functionOrRegion": "initializeAuth",
+      "purpose": "VIVERSE auth bootstrap with resilience checks",
+      "required": true
+    },
+    {
+      "hookId": "room-lifecycle",
+      "file": "src/hooks/useMultiplayer.js",
+      "functionOrRegion": "createRoom/joinRoom/leaveRoom",
+      "purpose": "Matchmaking and actor lifecycle",
+      "required": true
+    }
+  ],
+  "requiredGates": [
+    "build.app_id_propagation",
+    "runtime.auth_profile_pass",
+    "runtime.matchmaking_pass"
+  ],
+  "rulesetSchemaRef": "./scenario.schema.json#/definitions/rulesetRef",
+  "scenarioSchemaRef": "./scenario.schema.json",
+  "enforcement": {
+    "defaultMode": "enforce"
+  }
+}

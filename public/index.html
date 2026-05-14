@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VIVERSE AI Agent Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-wrapper">
+        <!-- ── SIDEBAR ─────────────────────────────────────────────────── -->
+        <aside class="sidebar">
+            <!-- ── Unified sidebar header ─────────────────────────────── -->
+            <div class="sidebar-header">
+                <div class="sidebar-brand">
+                    <img class="logo-icon" src="/viverse-favicon.ico" alt="VIVERSE">
+                    <div class="sidebar-brand-text">
+                        <span class="sidebar-brand-title">VIVERSE <span>AI</span></span>
+                        <span class="sidebar-brand-sub">Agent &nbsp;<span class="endpoint-dot"></span>&nbsp;Online</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-top">
+                <div class="account-panel">
+                    <div class="nav-label">VIVERSE Account</div>
+                    <div class="account-form">
+                        <input type="email" id="viverse-email" placeholder="Email Address" class="account-input">
+                        <input type="password" id="viverse-password" placeholder="Password" class="account-input">
+                        <button id="save-credentials-btn" class="account-btn">Save Credentials</button>
+                        <div id="credentials-status" class="credentials-status hidden">
+                            <span class="status-icon">✅</span> Ready for Auto-Publish
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sidebar-footer-spacer"></div>
+            </div>
+
+            <!-- Chat section fills remaining sidebar height -->
+            <section class="chat-section">
+                <div id="chat-messages" class="chat-messages">
+                    <div class="message-bubble system">
+                        <p>Welcome to VIVERSE Discovery and App Generation. I can help you explore worlds, and also create, test, and publish VIVERSE apps from prompts or templates.</p>
+                    </div>
+                </div>
+
+                <section id="run-console" class="run-console collapsed">
+                    <header class="run-console-header">
+                        <div class="run-console-title-wrap">
+                            <span class="run-console-label">Run Status</span>
+                            <span id="run-console-state" class="run-console-state idle">Idle</span>
+                        </div>
+                        <button id="run-console-toggle" class="run-console-toggle" type="button">Show Console</button>
+                    </header>
+                    <div class="run-console-summary">
+                        <div class="run-console-card">
+                            <span class="run-console-key">Stage</span>
+                            <span id="run-stage" class="run-console-value">Idle</span>
+                        </div>
+                        <div class="run-console-card">
+                            <span class="run-console-key">Task</span>
+                            <span id="run-task" class="run-console-value">None</span>
+                        </div>
+                        <div class="run-console-card">
+                            <span class="run-console-key">Blocker</span>
+                            <span id="run-blocker" class="run-console-value">None</span>
+                        </div>
+                    </div>
+                    <div id="status-log-panel" class="status-log-panel">
+                        <div class="status-line muted"><span class="status-icon">•</span> Waiting for the next run.</div>
+                    </div>
+                </section>
+
+                <footer class="chat-input-area">
+                    <div class="attachments-toolbar">
+                        <input type="file" id="media-input" accept="image/*,video/*,.pdf,.doc,.docx,.txt,.md,.json,.csv" multiple hidden>
+                        <button id="attach-btn" class="attach-btn" type="button">Attach</button>
+                        <div id="attachment-count" class="attachment-count hidden">0 files</div>
+                    </div>
+                    <div id="attachment-preview" class="attachment-preview hidden"></div>
+                    <div class="input-wrapper">
+                        <textarea id="user-input" placeholder="Type your message here..." rows="1"></textarea>
+                        <button id="send-btn" class="send-btn">
+                            <svg viewBox="0 0 24 24" width="18" height="18">
+                                <path fill="currentColor" d="M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </footer>
+            </section>
+
+            <!-- Drag-resize handle on right edge of sidebar -->
+            <div class="sidebar-resize-handle"></div>
+        </aside>
+
+        <!-- ── GAME PANEL ──────────────────────────────────────────────── -->
+        <main id="main-content" class="game-panel">
+            <header class="game-panel-header">
+                <span id="game-panel-title" class="game-panel-title"></span>
+
+                <!-- "Back to templates" pill — appears after chat-driven search results are shown -->
+                <button id="gallery-search-clear" class="gallery-search-clear hidden" title="Back to templates">✕ Templates</button>
+                <button id="refresh-templates-btn" class="game-panel-btn" title="Refresh templates"><svg viewBox="0 0 24 24" width="14" height="14"><path fill="currentColor" d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg></button>
+
+
+            </header>
+
+            <!-- Template gallery strip -->
+            <div class="template-gallery" id="template-gallery">
+                <!-- Cards rendered by renderTemplateGallery() in app.js -->
+            </div>
+
+            <!-- Game iframe area -->
+            <div class="game-frame-wrap">
+                <!-- Floating back-to-gallery overlay (visible only in game-view-active mode) -->
+                <button id="game-back-overlay" class="game-back-overlay hidden">← Back</button>
+
+                <iframe id="world-iframe" src="about:blank" frameborder="0" allow="autoplay; fullscreen"></iframe>
+
+                <!-- Branded placeholder shown when no game is loaded -->
+                <div class="game-placeholder" id="game-placeholder">
+                    <p class="game-placeholder-hint"><img src="/viverse-favicon.ico" alt="VIVERSE" style="width:16px;height:16px;object-fit:contain;vertical-align:-3px;margin-right:6px">Click <strong>Preview</strong> to open a live demo, or <strong>Use</strong> to load a template into chat.</p>
+                </div>
+
+                <!-- Loading overlay during iframe navigation -->
+                <div class="game-loading-overlay hidden" id="game-loading-overlay">
+                    <div class="loader"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="waiting-overlay" class="waiting-overlay">
+        <div class="waiting-content">
+            <div class="loader"></div>
+            <p>VIVERSE AI is processing...</p>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="app.js?v=20260502c"></script>
+</body>
+
+</html>

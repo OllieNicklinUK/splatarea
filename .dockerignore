@@ -1,0 +1,26 @@
+# Dependencies (reinstalled in image)
+node_modules/
+
+# Git
+.git/
+.gitignore
+
+# Local env — secrets injected at runtime via Secret Manager / env vars
+.env
+.env.*
+!.env.example
+
+# Workspace state — mount a volume or use Cloud Storage in production
+.viverse_workspaces/
+
+# Dev / test artifacts
+handoffs/
+*.log
+*.zip
+agent_output.json
+agent_response.json
+.viverse_app_history.json
+
+# Local dev tools
+.DS_Store
+*.swp

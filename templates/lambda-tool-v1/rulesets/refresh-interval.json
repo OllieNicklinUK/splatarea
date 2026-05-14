@@ -1,0 +1,10 @@
+{
+  "id": "refresh-interval",
+  "name": "Auto Refresh",
+  "description": "Tool that polls Lambda on an interval to show live data (e.g. ticker, live scores). Keep interval >= 30s to respect invoke job-style constraints.",
+  "authRequired": true,
+  "mobileFirst": true,
+  "iframeEmbeddable": true,
+  "refreshIntervalSeconds": 60,
+  "readOnly": true
+}

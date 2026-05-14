@@ -1,0 +1,43 @@
+{
+  "templateId": "lambda-tool-v1",
+  "exportedAt": "2026-04-20T01:59:42.287Z",
+  "sourceRoot": "template-sources/lambda-tool/app",
+  "dryRun": false,
+  "contractVersion": "1.0.0",
+  "immutablePaths": [
+    "src/viverseAuth.js",
+    "src/viverseConfig.js",
+    "src/viverseLambda.js",
+    "src/main.js"
+  ],
+  "editablePaths": [
+    "index.html",
+    "src/**",
+    "lambda/**",
+    "public/**",
+    "rulesets/**",
+    "README.md",
+    "TEMPLATE.md",
+    "scenario.schema.json",
+    "package.json",
+    ".env.lambda.example"
+  ],
+  "injectionHooks": [
+    {
+      "hookId": "auth-bootstrap",
+      "file": "src/viverseAuth.js"
+    },
+    {
+      "hookId": "lambda-invoke",
+      "file": "src/viverseLambda.js"
+    },
+    {
+      "hookId": "app-entry",
+      "file": "src/main.js"
+    },
+    {
+      "hookId": "lambda-event",
+      "file": "lambda/prices_event.js"
+    }
+  ]
+}

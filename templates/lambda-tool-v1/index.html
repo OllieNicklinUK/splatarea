@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Market Ticker</title>
+
+    <!-- VIVERSE SDK -->
+    <script src="https://www.viverse.com/static-assets/viverse-sdk/index.umd.cjs"></script>
+    <script src="https://www.viverse.com/static-assets/play-sdk/1.0.1/play-sdk.umd.js"></script>
+
+    <!-- Runtime config — edit clientId, symbols, and refreshIntervalSeconds before publish -->
+    <script>
+      window.__APP_CONFIG__ = {
+        clientId: "YOUR_APP_ID",
+        appName: "Market Ticker",
+        versionName: "1.0.0",
+        ticker: {
+          symbols: ["BTC", "ETH", "SOL", "BNB"],
+          currency: "USD",
+          refreshIntervalSeconds: 60
+        }
+      };
+    </script>
+
+    <style>
+      :root { color-scheme: dark; }
+      body { margin: 0; background: #0d1117; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "id": "default",
+  "name": "Default",
+  "description": "Standard Lambda tool profile. Auth required for invoke.",
+  "authRequired": true,
+  "mobileFirst": true,
+  "iframeEmbeddable": true,
+  "refreshIntervalSeconds": 60
+}

@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gaussian Mode</title>
+  <style>
+    :root {
+      --cyan:         #4FD8F5;
+      --cyan-glow:    rgba(79, 216, 245, 0.18);
+      --cyan-border:  rgba(79, 216, 245, 0.22);
+      --glass-bg:     rgba(255, 255, 255, 0.05);
+      --glass-border: rgba(255, 255, 255, 0.09);
+      --text:         #D8D9D6;
+      --muted:        #99999A;
+      --bg:           #080810;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+      overflow: hidden;
+      height: 100dvh;
+    }
+
+    /* ── Three.js canvas ─────────────────────────────────────── */
+    #canvas {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* ── Shared overlay base ─────────────────────────────────── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* ── Glass card base ─────────────────────────────────────── */
+    .glass {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      backdrop-filter: blur(28px) saturate(160%);
+      -webkit-backdrop-filter: blur(28px) saturate(160%);
+    }
+
+    /* ════════════════════════════════════════════════════════════
+       LAUNCHER
+    ════════════════════════════════════════════════════════════ */
+    #launcher {
+      background:
+        radial-gradient(ellipse 70% 50% at 50% 65%, rgba(79,216,245,0.05) 0%, transparent 65%),
+        var(--bg);
+    }
+
+    .launcher-card {
+      width: min(500px, 92vw);
+      padding: 40px 36px 36px;
+      display: flex;
+      flex-direction: column;
+      gap: 26px;
+    }
+
+    /* Header */
+    .launcher-header { display: flex; flex-direction: column; gap: 6px; }
+
+    .launcher-title {
+      font-size: 1.4rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      line-height: 1;
+    }
+
+    .title-dot {
+      width: 9px;
+      height: 9px;
+      background: var(--cyan);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--cyan), 0 0 24px rgba(79,216,245,0.4);
+      flex-shrink: 0;
+    }
+
+    .launcher-sub {
+      font-size: 0.85rem;
+      color: var(--muted);
+      padding-left: 19px;
+    }
+
+    /* Section label */
+    .section-label {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    /* Preset grid */
+    #preset-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .preset-card {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 18px 10px 14px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      color: var(--text);
+      font-family: inherit;
+      min-height: 70px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+    }
+
+    .preset-card:not(.disabled):hover {
+      border-color: var(--cyan-border);
+      box-shadow: 0 0 20px var(--cyan-glow);
+      transform: translateY(-2px);
+    }
+
+    .preset-card:not(.disabled):active { transform: translateY(0); }
+
+    .preset-card.disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+
+    .preset-card.filled {
+      cursor: pointer;
+      border-color: rgba(79,216,245,0.2);
+      position: relative;
+    }
+    .preset-card.filled:hover {
+      border-color: var(--cyan-border);
+      box-shadow: 0 0 20px var(--cyan-glow);
+      transform: translateY(-2px);
+    }
+
+    .preset-num {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--cyan);
+      line-height: 1;
+    }
+
+    .preset-label {
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.3;
+    }
+
+    .preset-meta {
+      font-size: 0.6rem;
+      color: var(--muted);
+      opacity: 0.55;
+    }
+
+    .preset-clear {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      width: 18px;
+      height: 18px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--glass-border);
+      border-radius: 50%;
+      color: var(--muted);
+      font-size: 0.65rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.15s;
+      font-family: inherit;
+    }
+    .preset-card.filled:hover .preset-clear { opacity: 1; }
+    .preset-clear:hover { color: #fff; background: rgba(255,80,80,0.25); border-color: rgba(255,80,80,0.4); }
+
+    /* Divider */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--glass-border);
+    }
+
+    /* URL row */
+    .url-row { display: flex; gap: 8px; }
+
+    #url-input {
+      flex: 1;
+      min-width: 0;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.85rem;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    #url-input::placeholder { color: var(--muted); opacity: 0.7; }
+    #url-input:focus {
+      border-color: var(--cyan-border);
+      box-shadow: 0 0 0 3px rgba(79,216,245,0.07);
+    }
+
+    .play-btn {
+      background: var(--cyan);
+      color: #080810;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 10px 20px;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    .play-btn:hover {
+      background: #7ee8fa;
+      box-shadow: 0 0 18px rgba(79,216,245,0.35);
+    }
+    .play-btn:active { background: #4FD8F5; }
+
+    /* File drop zone */
+    #drop-zone {
+      border: 1.5px dashed var(--glass-border);
+      border-radius: 10px;
+      padding: 20px 16px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s, color 0.2s;
+      font-size: 0.8rem;
+      color: var(--muted);
+      user-select: none;
+    }
+    #drop-zone:hover, #drop-zone.drag-over {
+      border-color: var(--cyan-border);
+      background: var(--cyan-glow);
+      color: var(--text);
+    }
+    .drop-icon {
+      display: block;
+      font-size: 1.4rem;
+      margin-bottom: 5px;
+      line-height: 1;
+    }
+    #file-input { display: none; }
+
+    /* ════════════════════════════════════════════════════════════
+       LOADING
+    ════════════════════════════════════════════════════════════ */
+    #loading {
+      display: none;
+      background: rgba(8,8,16,0.8);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      cursor: default;
+    }
+
+    .loading-card {
+      padding: 40px 48px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 22px;
+      min-width: 280px;
+    }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 2.5px solid var(--glass-border);
+      border-top-color: var(--cyan);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+
+    #loading-msg {
+      font-size: 0.85rem;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.55;
+      max-width: 260px;
+    }
+
+    /* When state = 'ready', loading card gets a click hint */
+    #loading.ready-state .spinner { border-top-color: var(--cyan); opacity: 0.4; animation: none; }
+    #loading.ready-state { cursor: pointer; }
+    #loading.ready-state #loading-msg { color: var(--text); font-weight: 600; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ════════════════════════════════════════════════════════════
+       HUD (FPS playing state)
+    ════════════════════════════════════════════════════════════ */
+    #hud {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      pointer-events: none;
+      display: none;
+    }
+
+    /* Crosshair — two pseudo-elements forming a + */
+    #crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 16px;
+      height: 16px;
+    }
+    #crosshair::before, #crosshair::after {
+      content: '';
+      position: absolute;
+      background: rgba(255,255,255,0.85);
+      border-radius: 1px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    #crosshair::before { width: 2px; height: 14px; }
+    #crosshair::after  { width: 14px; height: 2px; }
+
+    /* Bottom hint pill */
+    .hud-hint {
+      position: absolute;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(8,8,16,0.55);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      padding: 7px 20px;
+      font-size: 0.7rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      white-space: nowrap;
+    }
+
+    .hud-hint .key {
+      color: var(--cyan);
+      font-weight: 700;
+    }
+
+    .hud-hint .sep {
+      width: 1px;
+      height: 10px;
+      background: var(--glass-border);
+    }
+
+    /* ════════════════════════════════════════════════════════════
+       HUD INTERACTIVE ELEMENTS
+    ════════════════════════════════════════════════════════════ */
+
+    /* Preset save strip — top-centre, clickable after ESC */
+    .hud-preset-saves {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .hud-preset-btns {
+      display: flex;
+      gap: 6px;
+    }
+
+    .hud-preset-btn {
+      background: rgba(8,8,16,0.72);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 0.72rem;
+      padding: 5px 14px;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .hud-preset-btn:hover        { color: var(--text); border-color: var(--cyan-border); }
+    .hud-preset-btn.has-preset   { border-color: rgba(79,216,245,0.25); color: var(--cyan); }
+    .hud-preset-btn:disabled     { opacity: 0.5; cursor: default; }
+
+    /* Start Again button — top-left, always clickable */
+    .hud-restart-btn {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      pointer-events: auto;
+      background: rgba(8,8,16,0.72);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 0.75rem;
+      padding: 7px 14px;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .hud-restart-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.18); }
+
+    /* Floor height widget — bottom-right, clickable after ESC releases cursor */
+    .hud-floor-widget {
+      position: absolute;
+      bottom: 68px;
+      right: 16px;
+      pointer-events: auto;
+      background: rgba(8,8,16,0.72);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 10px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .hud-floor-label {
+      font-size: 0.6rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+
+    #fps-floor-val {
+      font-size: 0.85rem;
+      color: var(--cyan);
+      font-variant-numeric: tabular-nums;
+      min-width: 52px;
+      text-align: center;
+    }
+
+    /* ════════════════════════════════════════════════════════════
+       MODE INDICATOR (top-left, below restart button)
+    ════════════════════════════════════════════════════════════ */
+    #mode-indicator {
+      position: fixed;
+      top: 52px;
+      left: 16px;
+      z-index: 200;
+      display: none;
+      background: rgba(8,8,16,0.72);
+      border: 1px solid var(--glass-border);
+      border-radius: 6px;
+      padding: 5px 13px;
+      font-size: 0.68rem;
+      color: var(--text);
+      letter-spacing: 0.04em;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    /* ════════════════════════════════════════════════════════════
+       COLLISION STATUS BADGE
+    ════════════════════════════════════════════════════════════ */
+    #collision-status {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 200;
+      display: none;
+      background: rgba(8,8,16,0.72);
+      border: 1px solid var(--cyan-border);
+      border-radius: 6px;
+      padding: 5px 13px;
+      font-size: 0.68rem;
+      color: var(--cyan);
+      letter-spacing: 0.04em;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* ════════════════════════════════════════════════════════════
+       CONFIGURE SCREEN
+    ════════════════════════════════════════════════════════════ */
+    #configure {
+      pointer-events: none;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 24px;
+    }
+
+    .configure-hint-pill {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(8,8,16,0.72);
+      border: 1px solid var(--glass-border);
+      border-radius: 20px;
+      padding: 7px 20px;
+      font-size: 0.72rem;
+      color: var(--muted);
+      white-space: nowrap;
+      pointer-events: none;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .configure-back-btn {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(8,8,16,0.72);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-family: inherit;
+      font-size: 0.75rem;
+      padding: 7px 14px;
+      cursor: pointer;
+      pointer-events: auto;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .configure-back-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.18); }
+
+    .configure-panel {
+      pointer-events: auto;
+      width: min(580px, 92vw);
+      padding: 22px 26px 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .configure-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 28px;
+    }
+
+    .configure-value {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 5px;
+      font-variant-numeric: tabular-nums;
+    }
+    .configure-value.spawn-set { color: var(--cyan); }
+
+    .floor-adjuster {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 5px;
+    }
+
+    .floor-btn {
+      width: 30px;
+      height: 30px;
+      background: rgba(79,216,245,0.07);
+      border: 1px solid var(--cyan-border);
+      border-radius: 6px;
+      color: var(--cyan);
+      cursor: pointer;
+      font-size: 1.2rem;
+      font-weight: 700;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      user-select: none;
+      transition: background 0.12s;
+      flex-shrink: 0;
+    }
+    .floor-btn:hover  { background: rgba(79,216,245,0.16); }
+    .floor-btn:active { background: rgba(79,216,245,0.26); }
+
+    .floor-input {
+      background: transparent;
+      border: none;
+      border-bottom: 1px solid var(--cyan-border);
+      color: var(--cyan);
+      font-family: inherit;
+      font-size: 0.85rem;
+      font-variant-numeric: tabular-nums;
+      outline: none;
+      width: 72px;
+      text-align: center;
+      padding: 2px 4px;
+      -moz-appearance: textfield;
+    }
+    .floor-input::-webkit-outer-spin-button,
+    .floor-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+    .floor-input:focus {
+      border-bottom-color: var(--cyan);
+      background: rgba(79,216,245,0.06);
+      border-radius: 3px 3px 0 0;
+    }
+
+    .configure-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .configure-tip {
+      font-size: 0.68rem;
+      color: var(--muted);
+      opacity: 0.65;
+      line-height: 1.4;
+    }
+
+    /* ── Reduced motion ──────────────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      .spinner { animation: none; }
+      .preset-card, #url-input, #drop-zone, .play-btn,
+      .floor-btn, .configure-back-btn { transition: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Three.js renders here -->
+  <canvas id="canvas"></canvas>
+
+  <!-- ── Launcher ───────────────────────────────────────────── -->
+  <div id="launcher" class="overlay">
+    <div class="launcher-card glass">
+
+      <div class="launcher-header">
+        <div class="launcher-title">
+          <div class="title-dot"></div>
+          Gaussian Mode
+        </div>
+        <div class="launcher-sub">Walk inside Gaussian splat worlds</div>
+      </div>
+
+      <div>
+        <div class="section-label">Presets</div>
+        <div id="preset-grid"></div>
+      </div>
+
+      <div class="divider">or enter a URL</div>
+
+      <div class="url-row">
+        <input
+          id="url-input"
+          type="url"
+          placeholder="https://…/scene.ply"
+          autocomplete="off"
+          spellcheck="false"
+        />
+        <button id="url-play-btn" class="play-btn">▶ Play</button>
+      </div>
+
+      <div class="divider">or drop a file</div>
+
+      <div id="drop-zone">
+        <span class="drop-icon">⊕</span>
+        Drop .ply here or click to browse
+      </div>
+      <input id="file-input" type="file" accept=".ply" />
+
+    </div>
+  </div>
+
+  <!-- ── Loading / Click-to-enter ──────────────────────────── -->
+  <div id="loading" class="overlay">
+    <div class="loading-card glass">
+      <div class="spinner"></div>
+      <div id="loading-msg">Loading splat…</div>
+    </div>
+  </div>
+
+  <!-- ── Configure (choose start point + floor height) ──── -->
+  <div id="configure" class="overlay" style="display:none;">
+
+    <!-- Top hint -->
+    <div class="configure-hint-pill">
+      Orbit with mouse drag · Click scene to place start point
+    </div>
+
+    <!-- Back button -->
+    <button id="configure-back" class="configure-back-btn">← Back</button>
+
+    <!-- Bottom control panel -->
+    <div class="configure-panel glass">
+      <div class="configure-columns">
+
+        <div>
+          <div class="section-label">Start Point</div>
+          <div id="spawn-status" class="configure-value">Click in scene to place</div>
+        </div>
+
+        <div>
+          <div class="section-label">Floor Height</div>
+          <div class="floor-adjuster">
+            <button id="floor-dn" class="floor-btn">−</button>
+            <input id="floor-val" type="number" step="0.05" class="floor-input" value="0.00">
+            <button id="floor-up" class="floor-btn">+</button>
+          </div>
+        </div>
+
+      </div>
+      <div class="configure-footer">
+        <div class="configure-tip">Adjust the cyan plane to match the walkable floor surface</div>
+        <button id="configure-start" class="play-btn">▶ Start Walking</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── HUD (FPS mode) ────────────────────────────────────── -->
+  <div id="hud">
+    <div id="crosshair"></div>
+
+    <!-- Start Again — top-left, accessible after ESC releases cursor -->
+    <button class="hud-restart-btn" id="restart-btn">← Start Again</button>
+
+    <!-- Preset save strip — top-centre, press ESC first to free the cursor -->
+    <div class="hud-preset-saves">
+      <div class="hud-floor-label">Save to Preset</div>
+      <div class="hud-preset-btns">
+        <button id="fps-preset-btn-0" class="hud-preset-btn" title="Save to Preset 1">⊕ 1</button>
+        <button id="fps-preset-btn-1" class="hud-preset-btn" title="Save to Preset 2">⊕ 2</button>
+        <button id="fps-preset-btn-2" class="hud-preset-btn" title="Save to Preset 3">⊕ 3</button>
+      </div>
+    </div>
+
+    <!-- Floor height adjuster — bottom-right, use after pressing ESC -->
+    <div class="hud-floor-widget">
+      <div class="hud-floor-label">Floor Height</div>
+      <div class="floor-adjuster">
+        <button id="fps-floor-dn" class="floor-btn">−</button>
+        <span id="fps-floor-val">0.00m</span>
+        <button id="fps-floor-up" class="floor-btn">+</button>
+      </div>
+    </div>
+
+    <div class="hud-hint">
+      <span><span class="key">WASD</span> Move</span>
+      <div class="sep"></div>
+      <span><span class="key">Space</span> Jump</span>
+      <div class="sep"></div>
+      <span><span class="key">F</span> Fly/Walk</span>
+      <div class="sep"></div>
+      <span><span class="key">LMB</span> Shoot</span>
+      <div class="sep"></div>
+      <span><span class="key">B</span> Clear</span>
+      <div class="sep"></div>
+      <span><span class="key">ESC</span> Free cursor</span>
+    </div>
+  </div>
+
+  <!-- Fly/walk mode indicator (top-left) -->
+  <div id="mode-indicator"></div>
+
+  <!-- Collision generation status (top-right badge, shown during background gen) -->
+  <div id="collision-status"></div>
+
+  <script type="module" src="/src/play.js"></script>
+</body>
+</html>

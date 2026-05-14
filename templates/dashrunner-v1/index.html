@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Crazy Nonna - An endless runner game where an Italian grandmother dodges chaos!">
+    <title>Crazy Nonna 🇮🇹 - Infinite Runner</title>
+    <script src="https://www.viverse.com/static-assets/viverse-sdk/index.umd.cjs"></script>
+    <script src="https://www.viverse.com/static-assets/play-sdk/1.0.1/play-sdk.umd.js"></script>
+    <link rel="stylesheet" href="css/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;700;900&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <!-- Game Canvas Container -->
+    <div id="game-container">
+        <canvas id="game-canvas"></canvas>
+    </div>
+
+    <!-- UI Overlay -->
+    <div id="ui-overlay">
+        <!-- Score Display -->
+        <div id="score-display">
+            <div id="score">0</div>
+            <div id="score-label">SCORE</div>
+        </div>
+
+        <!-- Lives Display -->
+        <div id="lives-display">
+            <span class="heart">❤️</span>
+            <span class="heart">❤️</span>
+            <span class="heart">❤️</span>
+        </div>
+
+        <!-- Pizza Counter (4 pizzas = 1 life) -->
+        <div id="pizza-counter">🍕 0/4</div>
+
+        <!-- Speed Indicator -->
+        <div id="speed-display">
+            <div id="speed-bar">
+                <div id="speed-fill"></div>
+            </div>
+            <div id="speed-label">SPEED</div>
+        </div>
+
+        <!-- Boost Bar -->
+        <div id="boost-display">
+            <div id="boost-bar">
+                <div id="boost-fill"></div>
+            </div>
+            <div id="boost-label">⚡ BOOST</div>
+        </div>
+
+        <!-- Combo Display -->
+        <div id="combo-display" class="hidden">
+            <span id="combo-text">CLOSE CALL!</span>
+            <span id="combo-multiplier">x2</span>
+        </div>
+
+        <!-- Theme Selector -->
+        <div id="theme-display">
+            <span id="theme-name">Sunny Tuscany</span>
+            <span id="theme-hint">[T] to change</span>
+        </div>
+    </div>
+
+    <!-- Start Screen -->
+    <div id="start-screen" class="screen">
+        <div class="screen-content">
+            <h1 class="game-title">CRAZY NONNA</h1>
+            <p class="subtitle">🍝 The Infinite Runner 🍝</p>
+            <div class="nonna-art">👵</div>
+            <div class="controls-info">
+                <div class="control"><span class="key">←</span><span class="key">→</span> Move</div>
+                <div class="control"><span class="key">↑</span> Jump</div>
+                <div class="control"><span class="key">↓</span> Slide</div>
+            </div>
+            <button id="login-button" class="game-button hidden" style="background-color: #6c5ce7; font-size: 1.5rem; margin-bottom: 10px; width: 100%;">LOGIN WITH VIVERSE</button>
+            <button id="start-button" class="game-button hidden">START RUNNING!</button>
+            <div style="display: flex; gap: 10px; flex-direction: column;">
+                <button id="lobby-btn-start" class="game-button leaderboard-toggle-btn" style="background-color: #0984e3; font-size: 1.5rem; margin-top: 10px; width: 100%;">⚔️ MULTIPLAYER RACE!</button>
+                <button id="leaderboard-btn-start" class="game-button leaderboard-toggle-btn" style="background-color: #00b894; font-size: 1.5rem; margin-top: 0; width: 100%;">🏆 GLOBAL LEADERBOARD</button>
+            </div>
+            <p class="high-score">High Score: <span id="high-score">0</span></p>
+        </div>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over-screen" class="screen hidden">
+        <div class="screen-content">
+            <h1 class="game-over-title">MAMMA MIA!</h1>
+            <p class="final-score-label">Final Score</p>
+            <div id="final-score" class="final-score">0</div>
+            <p class="new-record hidden" id="new-record">🏆 NEW RECORD! 🏆</p>
+            <button id="restart-button" class="game-button">TRY AGAIN</button>
+            <button id="leaderboard-btn-end" class="game-button leaderboard-toggle-btn" style="background-color: #00b894; font-size: 1.5rem; margin-top: 10px; width: 100%;">🏆 LEADERBOARD</button>
+        </div>
+    </div>
+
+    <!-- Pause Screen -->
+    <div id="pause-screen" class="screen hidden">
+        <div class="screen-content">
+            <h1>PAUSED</h1>
+            <p>Press ESC to continue</p>
+        </div>
+    </div>
+
+    <!-- Leaderboard Screen -->
+    <div id="leaderboard-screen" class="screen hidden">
+        <div class="panel">
+            <h1 class="title">🏆 Global Rankings 🏆</h1>
+            <div id="leaderboard-loading" class="subtitle">Fetching scores from VIVERSE...</div>
+            <ul id="leaderboard-list"></ul>
+            <button id="close-leaderboard-button" class="game-button" style="background-color: #d63031; margin-top: 15px; width: 100%;">CLOSE</button>
+        </div>
+    </div>
+
+    <!-- Multiplayer Lobby Screen -->
+    <div id="lobby-screen" class="screen hidden">
+        <div class="panel" style="width: 600px;">
+            <h1 class="title">⚔️ Online Racing ⚔️</h1>
+            <div id="lobby-loading" class="subtitle" style="font-size: 18px;">Connecting...</div>
+            <ul id="lobby-list"></ul>
+            <div id="lobby-controls" style="display: flex; gap: 10px; flex-direction: column;">
+                <button id="create-room-btn" class="game-button" style="background-color: #6c5ce7; font-size: 1.2rem; margin-top: 10px; width: 100%;">CREATE NEW MATCH</button>
+                <button id="race-ai-btn" class="game-button" style="background-color: #e84393; font-size: 1.2rem; margin-top: 10px; width: 100%;">🤖 PLAY vs AI (Offline)</button>
+                <button id="start-race-btn" class="game-button hidden" style="background-color: #00b894; font-size: 1.2rem; margin-top: 10px; width: 100%;">🚀 START RACE (Waiting...)</button>
+                <button id="leave-room-btn" class="game-button hidden" style="background-color: #ff9f43; font-size: 1.2rem; margin-top: 10px; width: 100%;">🚪 LEAVE ROOM</button>
+                <button id="close-lobby-btn" class="game-button" style="background-color: #d63031; font-size: 1.2rem; margin-top: 10px; width: 100%;">BACK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Three.js and Dependencies -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+
+</html>
