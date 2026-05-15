@@ -44,6 +44,65 @@ export default defineConfig({
         }
       ]
     }),
+    // ── Splat library (from project-root /public/splats) ────────────────────
+    // This template lives at <root>/templates/gaussian-splat-library-v1/ and
+    // has its own public/ folder. The user's curated splat collection lives
+    // at <root>/public/splats/ — 2 folders up. We expose it via:
+    //   GET  /__lib-splats            → JSON listing of .ply/.sog files
+    //   GET  /lib-splats/<path>       → streams the file from <root>/public/splats/<path>
+    // No copy/symlink needed; reads straight off disk.
+    {
+      name: 'project-root-splat-library',
+      configureServer(server) {
+        const rootSplats = resolve(__dirname, '../../public/splats');
+
+        const scan = (baseDir, prefix, out) => {
+          if (!fs.existsSync(baseDir)) return;
+          for (const entry of fs.readdirSync(baseDir, { withFileTypes: true })) {
+            const full = resolve(baseDir, entry.name);
+            const url  = `${prefix}/${encodeURIComponent(entry.name)}`;
+            if (entry.isDirectory()) {
+              scan(full, `${prefix}/${entry.name}`, out);
+            } else if (/\.(ply|sog|splat|spz|ksplat)$/i.test(entry.name)) {
+              const stat = fs.statSync(full);
+              out.push({
+                name: entry.name,
+                path: url,                          // url-encoded for fetching
+                folder: prefix.split('/').pop(),    // "ply" or "sog" etc.
+                type: entry.name.split('.').pop().toLowerCase(),
+                sizeMB: +(stat.size / (1024 * 1024)).toFixed(1),
+              });
+            }
+          }
+        };
+
+        server.middlewares.use((req, res, next) => {
+          if (req.url === '/__lib-splats') {
+            const list = [];
+            try { scan(rootSplats, '/lib-splats', list); }
+            catch (e) { res.statusCode = 500; res.end(JSON.stringify({ error: e.message })); return; }
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(list));
+            return;
+          }
+
+          if (req.url?.startsWith('/lib-splats/')) {
+            // Decode + normalize, then guard against ../ escapes
+            const relRaw = decodeURIComponent(req.url.slice('/lib-splats/'.length).split('?')[0]);
+            const filePath = resolve(rootSplats, relRaw);
+            if (!filePath.startsWith(rootSplats)) {
+              res.statusCode = 403; res.end('Forbidden'); return;
+            }
+            if (!fs.existsSync(filePath)) { res.statusCode = 404; res.end('Not found'); return; }
+            res.setHeader('Content-Type', 'application/octet-stream');
+            res.setHeader('Content-Length', fs.statSync(filePath).size);
+            fs.createReadStream(filePath).pipe(res);
+            return;
+          }
+          next();
+        });
+      },
+    },
     // Scans public/models and public/splats, returns JSON list of 3D assets.
     {
       name: 'models-scanner',

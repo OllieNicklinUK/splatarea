@@ -176,7 +176,7 @@
       align-items: center; gap: 8px; pointer-events: auto;
     }
     #fps-floor-widget .section-label { font-size: 9px; color: #64748b; white-space: nowrap; }
-    #fps-floor-val { font-size: 11px; color: #e2e8f0; min-width: 48px; text-align: center; }
+    #fps-floor-val, #fps-scale-val { font-size: 11px; color: #e2e8f0; min-width: 48px; text-align: center; }
     .fps-floor-btn {
       background: #1a2a3a; border: 1px solid #334155; color: #22d3ee;
       width: 24px; height: 24px; border-radius: 2px; font-size: 14px; line-height: 1;
@@ -184,6 +184,8 @@
       transition: background 0.1s; flex-shrink: 0; user-select: none;
     }
     .fps-floor-btn:hover { background: #223344; }
+    .fps-floor-btn.wide { width: auto; padding: 0 9px; font-size: 10px; letter-spacing: 1px; }
+    .fps-divider { width: 1px; height: 18px; background: #1e2a3a; flex-shrink: 0; }
 
     /* ── Phase 3: FPS explore ── */
     #fps-hint {
@@ -324,6 +326,33 @@
     <input type="file" id="ply-upload" accept=".ply,.sog" style="display:none" />
     <div id="splash-status"></div>
     <div id="loading-bar"><div id="loading-bar-fill"></div></div>
+
+    <!-- ── Splat Library (auto-loaded from <root>/public/splats/) ──────── -->
+    <div id="library-section" style="
+      width: min(680px, 90vw);
+      margin-top: 14px;
+      display: flex; flex-direction: column; gap: 8px;
+    ">
+      <div style="
+        display:flex; align-items:baseline; justify-content:space-between;
+        font-size:10px; letter-spacing:2px; color:#94a3b8; text-transform:uppercase;
+      ">
+        <span>Library</span>
+        <span id="library-count" style="color:#475569;">scanning…</span>
+      </div>
+      <div id="library-grid" style="
+        display:grid;
+        grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+        gap:6px;
+        max-height: 220px;
+        overflow-y: auto;
+        padding: 4px;
+        background: rgba(15,23,42,0.5);
+        border: 1px solid rgba(255,255,255,0.06);
+        border-radius: 6px;
+      "></div>
+    </div>
+
     <div id="preset-grid"></div>
     <div class="hint">Walk around in your splat and confirm a position to start</div>
   </div>
@@ -360,6 +389,16 @@
           <button id="floor-dn" class="floor-btn">−</button>
           <input id="floor-val" type="number" step="0.05" class="floor-input" value="0.00" />
           <button id="floor-up" class="floor-btn">+</button>
+        </div>
+      </div>
+
+      <!-- Splat scale: multiplicative ± buttons. Scales splat + cage + floor + spawn together. -->
+      <div style="margin-top:8px;">
+        <div class="section-label">Splat Scale</div>
+        <div class="floor-adjuster" style="margin-top:5px;">
+          <button id="scale-dn" class="floor-btn">−</button>
+          <input id="scale-val" type="number" step="0.1" min="0.05" max="100" class="floor-input" value="1.00" />
+          <button id="scale-up" class="floor-btn">+</button>
         </div>
       </div>
 
@@ -403,6 +442,17 @@
     <button id="fps-floor-dn" class="fps-floor-btn">−</button>
     <span id="fps-floor-val">0.00m</span>
     <button id="fps-floor-up" class="fps-floor-btn">+</button>
+
+    <span class="fps-divider"></span>
+
+    <span class="section-label">Scale</span>
+    <button id="fps-scale-dn" class="fps-floor-btn">−</button>
+    <span id="fps-scale-val">1.00×</span>
+    <button id="fps-scale-up" class="fps-floor-btn">+</button>
+
+    <span class="fps-divider"></span>
+
+    <button id="fps-snap-floor" class="fps-floor-btn wide" title="Set floor to where you're standing (raycasts straight down)">⤓ Snap Floor</button>
   </div>
 
   <!-- Phase 4: Tank game HUD -->

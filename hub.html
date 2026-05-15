@@ -1,0 +1,530 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Demo Hub — Viverse Agent Workspace</title>
+  <style>
+    :root {
+      --bg-0: #07070d;
+      --bg-1: #0d0d18;
+      --panel: rgba(20,24,38,0.55);
+      --line:  rgba(255,255,255,0.08);
+      --line-2: rgba(255,255,255,0.15);
+      --text:  #ecf0f6;
+      --dim:   #8b93a6;
+      --cyan:  #4fd8f5;
+      --pink:  #ff66ff;
+      --amber: #ffc832;
+      --green: #7df7c0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      background: radial-gradient(ellipse at top, #161228 0%, var(--bg-0) 60%, #000 100%);
+      color: var(--text);
+      font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    a { color: var(--cyan); text-decoration: none; }
+    code, pre, .mono { font-family: 'JetBrains Mono', 'Courier New', monospace; font-size: 12px; }
+
+    .wrap {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 48px 32px 96px;
+    }
+
+    /* Hero */
+    .hero {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 24px;
+      margin-bottom: 40px;
+      flex-wrap: wrap;
+    }
+    .hero h1 {
+      font-size: clamp(28px, 4vw, 44px);
+      letter-spacing: 8px;
+      text-transform: uppercase;
+      text-shadow: 0 0 40px rgba(79,216,245,0.35);
+      font-weight: 600;
+    }
+    .hero .sub {
+      color: var(--dim);
+      font-size: 13px;
+      letter-spacing: 3px;
+      margin-top: 6px;
+      text-transform: uppercase;
+    }
+    .hero .branch-pill {
+      background: rgba(79,216,245,0.10);
+      border: 1px solid rgba(79,216,245,0.4);
+      color: var(--cyan);
+      padding: 8px 16px;
+      border-radius: 999px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 2px;
+    }
+
+    /* Section header */
+    .section { margin-top: 48px; }
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .section-head h2 {
+      font-size: 14px;
+      letter-spacing: 6px;
+      text-transform: uppercase;
+      color: var(--cyan);
+      font-weight: 700;
+    }
+    .section-head .hint {
+      color: var(--dim);
+      font-size: 11px;
+      letter-spacing: 2px;
+    }
+
+    /* Card grid */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line-2);
+      border-radius: 12px;
+      padding: 20px;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: border-color .15s, transform .15s;
+    }
+    .card:hover { border-color: rgba(79,216,245,0.5); transform: translateY(-2px); }
+    .card.star { border-color: rgba(79,216,245,0.4); box-shadow: 0 0 24px rgba(79,216,245,0.08); }
+    .card.legacy { opacity: 0.65; }
+    .card-title {
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .badge {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: rgba(255,200,50,0.18);
+      color: var(--amber);
+      border: 1px solid rgba(255,200,50,0.3);
+    }
+    .badge.new { background: rgba(255,102,255,0.15); color: var(--pink); border-color: rgba(255,102,255,0.3); }
+    .badge.game { background: rgba(79,216,245,0.15); color: var(--cyan); border-color: rgba(79,216,245,0.3); }
+    .badge.tool { background: rgba(125,247,192,0.12); color: var(--green); border-color: rgba(125,247,192,0.3); }
+    .card-desc { color: var(--dim); font-size: 13px; }
+    .card-meta {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--dim);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+    }
+    .card-meta .row { display: flex; gap: 6px; }
+    .card-meta .k { color: rgba(255,255,255,0.4); min-width: 56px; }
+    .card-meta .v { color: var(--text); word-break: break-all; }
+    .card-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .btn {
+      flex: 1;
+      padding: 9px 12px;
+      background: rgba(79,216,245,0.10);
+      border: 1px solid rgba(79,216,245,0.4);
+      border-radius: 6px;
+      color: var(--cyan);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 1.5px;
+      cursor: pointer;
+      text-align: center;
+      transition: background .12s, border-color .12s;
+    }
+    .btn:hover { background: rgba(79,216,245,0.22); border-color: var(--cyan); }
+    .btn.secondary {
+      background: rgba(255,255,255,0.04);
+      border-color: var(--line-2);
+      color: var(--text);
+    }
+    .btn.secondary:hover { background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.25); }
+
+    /* Banner */
+    .banner {
+      background: rgba(255,200,50,0.08);
+      border: 1px solid rgba(255,200,50,0.3);
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: 13px;
+      color: rgba(255,200,50,0.95);
+      margin-bottom: 32px;
+    }
+    .banner strong { color: var(--amber); }
+    .banner code { color: var(--amber); background: rgba(255,200,50,0.12); padding: 1px 5px; border-radius: 3px; }
+
+    details summary {
+      cursor: pointer;
+      padding: 8px 0;
+      color: var(--dim);
+      font-size: 13px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    details[open] summary { color: var(--text); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- Hero -->
+    <div class="hero">
+      <div>
+        <h1>Demo Hub</h1>
+        <div class="sub">Viverse Agent Workspace · Splat-Arena Branch</div>
+      </div>
+      <div class="branch-pill">▷ splat-arena</div>
+    </div>
+
+    <!-- Heads-up banner -->
+    <div class="banner">
+      <strong>Heads-up:</strong> most demos default to Vite's port <code>5173</code> and can't run simultaneously.
+      To run two at once, override the port: <code>npm run dev -- --port 5174</code>.
+      Click <strong>Open</strong> below assuming the matching server is running.
+    </div>
+
+    <!-- Section: ★ Splat Play (Ollie's main work) -->
+    <div class="section">
+      <div class="section-head">
+        <h2>★ Splat Play</h2>
+        <span class="hint">Walk inside Gaussian splat scenes</span>
+      </div>
+      <div class="grid">
+
+        <div class="card star">
+          <div class="card-title">Splat Arena <span class="badge new">multi-mode</span></div>
+          <div class="card-desc">Ollie's latest: FPS Explore · Tank Battle · Flight Sim · People (VRM NPC crowd). 4 game modes inside any splat scene.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">templates/gaussian-splat-library-v1/</span></div>
+            <div class="row"><span class="k">start</span><span class="v">cd templates/gaussian-splat-library-v1 && npm run dev</span></div>
+            <div class="row"><span class="k">port</span><span class="v">5173</span></div>
+          </div>
+          <div class="card-actions">
+            <a class="btn" href="http://localhost:5173/play.html" target="_blank">▶ Open</a>
+          </div>
+        </div>
+
+        <div class="card star">
+          <div class="card-title">Standalone FPS <span class="badge game">stable</span></div>
+          <div class="card-desc">Single-mode FPS walker. Cleanest place to test pure splat walking + ball shooter.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">standalone/</span></div>
+            <div class="row"><span class="k">start</span><span class="v">cd standalone && npm run dev</span></div>
+            <div class="row"><span class="k">port</span><span class="v">5173</span></div>
+          </div>
+          <div class="card-actions">
+            <a class="btn" href="http://localhost:5173/play.html" target="_blank">▶ Open</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">GaussianSplatPlay <span class="badge">extracted</span></div>
+          <div class="card-desc">Extracted instance from the zip Ollie shared. Possibly an earlier variant — has its own package.json.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">GaussianSplatPlay/</span></div>
+            <div class="row"><span class="k">setup</span><span class="v">cd GaussianSplatPlay && npm install</span></div>
+            <div class="row"><span class="k">start</span><span class="v">npm run dev</span></div>
+          </div>
+          <div class="card-actions">
+            <a class="btn secondary" href="GaussianSplatPlay/play.html" target="_blank">View Source</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Section: Curated Templates -->
+    <div class="section">
+      <div class="section-head">
+        <h2>◇ Agent Templates</h2>
+        <span class="hint">The 9 templates the AI agent uses to scaffold apps</span>
+      </div>
+      <div class="grid">
+
+        <div class="card">
+          <div class="card-title">Tank Arena 3D <span class="badge game">game</span></div>
+          <div class="card-desc">3D tank arena with bot opponents. Three.js + VIVERSE auth + leaderboard.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">templates/tankarena-3d-v1/</span></div>
+            <div class="row"><span class="k">port</span><span class="v">5173</span></div>
+          </div>
+          <div class="card-actions">
+            <a class="btn" href="http://localhost:5173/" target="_blank">▶ Open</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Flight Simulator <span class="badge game">game</span></div>
+          <div class="card-desc">Third-person aircraft sim with ring courses. Same VIVERSE stack as tank arena.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">templates/flight-simulator-v1/</span></div>
+            <div class="row"><span class="k">port</span><span class="v">5173</span></div>
+          </div>
+          <div class="card-actions">
+            <a class="btn" href="http://localhost:5173/" target="_blank">▶ Open</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">DashRunner <span class="badge game">game</span></div>
+          <div class="card-desc">Endless runner template. VIVERSE auth, leaderboard, matchmaking, avatar-aware VRM runtime.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">templates/dashrunner-v1/</span></div>
+            <div class="row"><span class="k">port</span><span class="v">5173</span></div>
+          </div>
+          <div class="card-actions">
+            <a class="btn" href="http://localhost:5173/" target="_blank">▶ Open</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Starter Kit Racing <span class="badge game">game</span></div>
+          <div class="card-desc">Top-down racing kit with an in-browser track editor.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">templates/starter-kit-racing-v1/</span></div>
+            <div class="row"><span class="k">port</span><span class="v">5173</span></div>
+          </div>
+          <div class="card-actions">
+            <a class="btn" href="http://localhost:5173/" target="_blank">▶ Open</a>
+            <a class="btn secondary" href="http://localhost:5173/editor.html" target="_blank">Editor</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">RedPointFish <span class="badge game">game</span></div>
+          <div class="card-desc">Fishing-style game template.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">templates/redpointfish-v1/</span></div>
+            <div class="row"><span class="k">port</span><span class="v">5173</span></div>
+          </div>
+          <div class="card-actions">
+            <a class="btn" href="http://localhost:5173/" target="_blank">▶ Open</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Flow Line <span class="badge game">game</span></div>
+          <div class="card-desc">2D flow/line drawing puzzle template.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">templates/flow-line-v1/</span></div>
+            <div class="row"><span class="k">port</span><span class="v">5173</span></div>
+          </div>
+          <div class="card-actions">
+            <a class="btn" href="http://localhost:5173/" target="_blank">▶ Open</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Lambda Tool <span class="badge tool">utility</span></div>
+          <div class="card-desc">VIVERSE Lambda function tool template — server-side capability scaffold.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">templates/lambda-tool-v1/</span></div>
+            <div class="row"><span class="k">port</span><span class="v">5173</span></div>
+          </div>
+          <div class="card-actions">
+            <a class="btn" href="http://localhost:5173/" target="_blank">▶ Open</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Blank Web App <span class="badge tool">utility</span></div>
+          <div class="card-desc">Mobile-first VIVERSE utility-app baseline. No Lambda. For polls/countdowns/widgets.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">templates/blank-webapp-v1/</span></div>
+            <div class="row"><span class="k">port</span><span class="v">5173</span></div>
+          </div>
+          <div class="card-actions">
+            <a class="btn" href="http://localhost:5173/" target="_blank">▶ Open</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Gaussian Splat Library <span class="badge new">splat</span></div>
+          <div class="card-desc">The template version of the Splat Arena multi-mode launcher (same as top-of-page).</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">templates/gaussian-splat-library-v1/</span></div>
+            <div class="row"><span class="k">entry</span><span class="v">play.html (multi-mode) or index.html</span></div>
+          </div>
+          <div class="card-actions">
+            <a class="btn" href="http://localhost:5173/play.html" target="_blank">▶ play.html</a>
+            <a class="btn secondary" href="http://localhost:5173/" target="_blank">index</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Section: Agent Server -->
+    <div class="section">
+      <div class="section-head">
+        <h2>⚙ Agent Server</h2>
+        <span class="hint">The Node.js orchestrator that uses the templates above</span>
+      </div>
+      <div class="grid">
+
+        <div class="card">
+          <div class="card-title">Viverse AI Agent <span class="badge tool">server</span></div>
+          <div class="card-desc">Multi-agent (Architect/Coder/Reviewer/Verifier) Node.js server that generates VIVERSE apps from prompts. Dashboard + chat UI.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">src/ (server) + public/ (dashboard)</span></div>
+            <div class="row"><span class="k">setup</span><span class="v">npm install (at project root)</span></div>
+            <div class="row"><span class="k">start</span><span class="v">npm run dev</span></div>
+            <div class="row"><span class="k">port</span><span class="v">3000</span></div>
+          </div>
+          <div class="card-actions">
+            <a class="btn" href="http://localhost:3000/" target="_blank">▶ Open Dashboard</a>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Section: Other -->
+    <div class="section">
+      <div class="section-head">
+        <h2>+ Other</h2>
+        <span class="hint">Demos and tools that aren't part of the curated set</span>
+      </div>
+      <div class="grid">
+
+        <div class="card">
+          <div class="card-title">Newton Demo <span class="badge">VRM crowd</span></div>
+          <div class="card-desc">VRM NPC crowd simulator. Source of the "People" mode in Splat Arena.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">NewtonDemo/</span></div>
+            <div class="row"><span class="k">setup</span><span class="v">cd NewtonDemo && npm install</span></div>
+            <div class="row"><span class="k">start</span><span class="v">npm run dev</span></div>
+          </div>
+          <div class="card-actions">
+            <a class="btn secondary" href="NewtonDemo/index.html" target="_blank">View Source</a>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Splat Transform <span class="badge tool">CLI</span></div>
+          <div class="card-desc">Node.js CLI for splat-to-mesh voxel collision generation. Used by the agent's /api/gen-collision route.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">splat-transform-main/</span></div>
+            <div class="row"><span class="k">usage</span><span class="v">npx splat-transform foo.ply -K --seed-pos=...</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Section: Legacy / unrelated -->
+    <details class="section">
+      <summary>▸ Reference clones (legacy, mostly not Ollie's work)</summary>
+      <div class="grid" style="margin-top: 16px;">
+
+        <div class="card legacy">
+          <div class="card-title">Elemental Serenity</div>
+          <div class="card-desc">Standalone "elemental" particle world demo.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">Elemental-Serenity-main/</span></div>
+          </div>
+        </div>
+
+        <div class="card legacy">
+          <div class="card-title">PlanetGen</div>
+          <div class="card-desc">Planet generation + cloud demos.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">PlanetGen/</span></div>
+          </div>
+        </div>
+
+        <div class="card legacy">
+          <div class="card-title">VTube JS</div>
+          <div class="card-desc">VTuber / face tracking demo with voice popup.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">VTubeJS_Min-master/</span></div>
+          </div>
+        </div>
+
+        <div class="card legacy">
+          <div class="card-title">Hybrid City FPS</div>
+          <div class="card-desc">FPS over an OSM-buildings city.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">hybrid-city-fps/</span></div>
+          </div>
+        </div>
+
+        <div class="card legacy">
+          <div class="card-title">FPS City Ship Package</div>
+          <div class="card-desc">FPS demo with city + ship.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">fps-city-ship-package/</span></div>
+          </div>
+        </div>
+
+        <div class="card legacy">
+          <div class="card-title">Voxel Landmark</div>
+          <div class="card-desc">Voxel-style landmark rendering.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">voxel-landmark-3js-main/</span></div>
+          </div>
+        </div>
+
+        <div class="card legacy">
+          <div class="card-title">Viverse Everything</div>
+          <div class="card-desc">Catch-all collection of VIVERSE demos.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">viverse-everything-main/</span></div>
+          </div>
+        </div>
+
+        <div class="card legacy">
+          <div class="card-title">HY-World 2.0</div>
+          <div class="card-desc">Tencent Hunyuan World — Python text-to-3D world generator. Has its own venv.</div>
+          <div class="card-meta">
+            <div class="row"><span class="k">path</span><span class="v">HY-World-2.0/</span></div>
+          </div>
+        </div>
+
+      </div>
+    </details>
+
+    <!-- Footer -->
+    <div style="margin-top: 64px; color: var(--dim); font-size: 11px; letter-spacing: 2px; text-align: center;">
+      Tip · Open this hub from any running Vite server (e.g. <code class="mono">http://localhost:5173/../../hub.html</code>) or directly via <code class="mono">file://</code>.
+    </div>
+
+  </div>
+</body>
+</html>

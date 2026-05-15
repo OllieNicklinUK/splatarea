@@ -26,6 +26,40 @@ const NUM_PRESETS = 3;
 let currentSplatMeta = null; // { name, url, isFile } — set in loadSplat
 let _presetOverride  = null; // { floorY, spawnX, spawnZ, spawnRadius, gameMode }
 
+// ── Per-splat memo (auto-remembered scale/floor/spawn per identity) ─────────
+// Distinct from presets: presets are explicit "save current to slot N". Memo
+// is the silent auto-save that fires on every change so reloading the same
+// splat picks up where you left off. URL-based splats key on URL; uploaded
+// files key on filename (blob: URLs change every session, so they're useless).
+function _splatMemoKey(meta) {
+  if (!meta) return null;
+  if (meta.isFile && meta.name) return `splat-memo:file:${meta.name}`;
+  if (meta.url)                  return `splat-memo:url:${meta.url}`;
+  return null;
+}
+function _loadSplatMemo(meta) {
+  const key = _splatMemoKey(meta);
+  if (!key) return null;
+  try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
+}
+let _saveMemoTimer = null;
+function _saveSplatMemo() {
+  if (_saveMemoTimer) clearTimeout(_saveMemoTimer);
+  _saveMemoTimer = setTimeout(() => {
+    const key = _splatMemoKey(currentSplatMeta);
+    if (!key) return;
+    try {
+      localStorage.setItem(key, JSON.stringify({
+        scale:  _splatScale,
+        floorY: configFloorY,
+        spawnX: configSpawnX,
+        spawnZ: configSpawnZ,
+        ts: Date.now(),
+      }));
+    } catch {}
+  }, 300);
+}
+
 function _getPreset(i) {
   try { return JSON.parse(localStorage.getItem(_PRESET_LS(i))); } catch { return null; }
 }
@@ -412,10 +446,10 @@ document.addEventListener('mouseup', _stopSpawnR);
 
 // X / Z sliders
 document.getElementById('spawn-x-slider')?.addEventListener('input', (e) => {
-  configSpawnX = parseFloat(e.target.value); _updateSpawnSphere();
+  configSpawnX = parseFloat(e.target.value); _updateSpawnSphere(); _saveSplatMemo?.();
 });
 document.getElementById('spawn-z-slider')?.addEventListener('input', (e) => {
-  configSpawnZ = parseFloat(e.target.value); _updateSpawnSphere();
+  configSpawnZ = parseFloat(e.target.value); _updateSpawnSphere(); _saveSplatMemo?.();
 });
 
 // Click-on-floor to reposition centre (orbit phase only)
@@ -443,6 +477,7 @@ renderer.domElement.addEventListener('click', (e) => {
       configSpawnZ = THREE.MathUtils.clamp(configSpawnZ, configBox.min.z, configBox.max.z);
     }
     _updateSpawnSphere();
+    _saveSplatMemo?.();
   }
 });
 
@@ -459,6 +494,7 @@ function setFloor(y) {
   _updateFloorValDisplay();
   if (_spawnGroup) _updateSpawnSphere(); // keep disc on floor
   physics.rebuildCollision();
+  _saveSplatMemo?.();   // remember per-splat
 }
 
 function adjustFloor(delta) { setFloor(configFloorY + delta); }
@@ -943,6 +979,41 @@ function loadSplat(url, name, file = null) {
         controls.target.copy(center);
         controls.update();
 
+        // ── Auto-fit + memo restore ──────────────────────────────────────
+        // Memo (per-splat last-known-good) wins. Otherwise auto-fit only if
+        // the bbox is wildly outside human-scale (max horiz dim < 5m or > 50m),
+        // targeting ~20m. applySplatScale handles cage rescale + physics rebuild
+        // + floor/spawn proportional math.
+        const memo = _loadSplatMemo(currentSplatMeta);
+        let targetScale = 1.0;
+        if (memo && Number.isFinite(memo.scale) && memo.scale > 0) {
+          targetScale = memo.scale;
+        } else {
+          const maxDim = Math.max(size.x, size.z);
+          if (maxDim > 0 && (maxDim < 5 || maxDim > 50)) {
+            targetScale = 20 / maxDim;
+          }
+        }
+        if (targetScale !== 1.0) {
+          applySplatScale(targetScale);
+          // Re-frame after scale so the camera sits at the new bbox distance
+          const sc = configBox.getCenter(new THREE.Vector3());
+          const ss = configBox.getSize(new THREE.Vector3());
+          const sd = Math.max(ss.x, ss.y, ss.z) * 1.4;
+          camera.position.copy(sc).addScaledVector(new THREE.Vector3(1, 0.6, 1).normalize(), sd);
+          controls.target.copy(sc);
+          controls.update();
+        }
+        if (memo) {
+          if (Number.isFinite(memo.floorY)) configFloorY = memo.floorY;
+          if (Number.isFinite(memo.spawnX)) configSpawnX = memo.spawnX;
+          if (Number.isFinite(memo.spawnZ)) configSpawnZ = memo.spawnZ;
+          _updateSpawnSphere();
+          _updateConfigFloorGrid();
+          _updateFloorHandle();
+          _updateFloorValDisplay();
+        }
+
         // Read PLY buffer early so it's available in the _presetOverride path too
         const isSog = name?.toLowerCase().endsWith('.sog');
         let plyBuffer = null;
@@ -1215,6 +1286,200 @@ splashEl?.addEventListener('drop', (e) => {
   const file = [...(e.dataTransfer?.files ?? [])].find(f => f.name.endsWith('.ply') || f.name.endsWith('.sog'));
   if (file) loadSplat(URL.createObjectURL(file), file.name, file);
 });
+
+// ─── Library panel ──────────────────────────────────────────────────────────
+// Auto-fetch the splat catalog from the project root's public/splats folder
+// (served by the project-root-splat-library middleware in vite.config.js) and
+// render it as a clickable grid in the splash overlay. Clicking a card calls
+// the same loadSplat() path as the file-upload button — same code, no special
+// handling needed.
+(async function _initLibrary() {
+  const grid = document.getElementById('library-grid');
+  const count = document.getElementById('library-count');
+  if (!grid || !count) return;
+  try {
+    const res = await fetch('/__lib-splats');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const list = await res.json();
+    if (!Array.isArray(list) || list.length === 0) {
+      count.textContent = '(empty)';
+      grid.innerHTML = '<div style="grid-column:1/-1;font-size:10px;color:#475569;padding:8px;">No splats found in &lt;root&gt;/public/splats/</div>';
+      return;
+    }
+    // Group by folder (ply / sog) for a tidy display
+    list.sort((a, b) => (a.folder + a.name).localeCompare(b.folder + b.name));
+    count.textContent = `${list.length} file${list.length === 1 ? '' : 's'}`;
+    grid.innerHTML = '';
+    for (const entry of list) {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.title = `${entry.name} (${entry.sizeMB} MB)`;
+      card.style.cssText = `
+        text-align:left; padding:8px 10px; cursor:pointer;
+        background: rgba(34,211,238,0.04);
+        border: 1px solid rgba(34,211,238,0.18);
+        border-radius: 5px;
+        color: #e2e8f0; font-family: inherit; font-size: 11px;
+        display:flex; flex-direction:column; gap:3px;
+        transition: background 0.12s, border-color 0.12s;
+      `;
+      const displayName = entry.name.replace(/\.(ply|sog|splat|spz|ksplat)$/i, '');
+      card.innerHTML = `
+        <span style="font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${displayName}</span>
+        <span style="font-size:9px;color:#64748b;letter-spacing:1px;text-transform:uppercase;">${entry.folder} · ${entry.sizeMB} MB</span>
+      `;
+      card.addEventListener('mouseenter', () => {
+        card.style.background = 'rgba(34,211,238,0.12)';
+        card.style.borderColor = 'rgba(34,211,238,0.5)';
+      });
+      card.addEventListener('mouseleave', () => {
+        card.style.background = 'rgba(34,211,238,0.04)';
+        card.style.borderColor = 'rgba(34,211,238,0.18)';
+      });
+      card.addEventListener('click', () => {
+        // Same signature as the file-upload handler.
+        // file=null because this is a server-hosted URL, not a blob.
+        loadSplat(entry.path, entry.name, null);
+      });
+      grid.appendChild(card);
+    }
+  } catch (e) {
+    count.textContent = 'unavailable';
+    grid.innerHTML = `<div style="grid-column:1/-1;font-size:10px;color:#7f1d1d;padding:8px;">Library fetch failed: ${e.message}</div>`;
+  }
+})();
+
+// ─── Splat scale slider ─────────────────────────────────────────────────────
+// Uniform scale applied to the splat + bbox cage. Floor and spawn positions
+// are multiplied by the same ratio so they stay anchored to the same logical
+// features. Resets to 1.0 on each new splat load.
+let _splatScale = 1.0;
+
+// Visual rotation/scale is instant. Physics rebuild (Octree + BVH from the
+// cage) is debounced so dragging or hold-to-repeat doesn't kill the framerate.
+let _scalePhysicsTimer = null;
+function _flushScalePhysics() {
+  if (_scalePhysicsTimer) { clearTimeout(_scalePhysicsTimer); _scalePhysicsTimer = null; }
+  if (!_splatCage) return;
+  const newBox = new THREE.Box3().setFromObject(_splatCage);
+  configBox = newBox;
+  _splatBox = newBox;
+  _activateCollision?.(_splatCage, newBox);
+}
+function _queueScalePhysics() {
+  if (_scalePhysicsTimer) clearTimeout(_scalePhysicsTimer);
+  _scalePhysicsTimer = setTimeout(_flushScalePhysics, 220);
+}
+
+function applySplatScale(newScale) {
+  newScale = Math.max(0.05, Math.min(100, +newScale));
+  if (!isFinite(newScale) || newScale === _splatScale) return;
+  const ratio = newScale / _splatScale;
+  _splatScale = newScale;
+
+  if (activeSplatMesh) {
+    activeSplatMesh.scale.setScalar(newScale);
+    activeSplatMesh.updateMatrixWorld(true);
+  }
+  if (_splatCage) {
+    _splatCage.scale.setScalar(newScale);
+    _splatCage.updateMatrixWorld(true);
+  }
+
+  // Anchor floor + spawn to the splat's frame of reference
+  configFloorY *= ratio;
+  configSpawnX *= ratio;
+  configSpawnZ *= ratio;
+
+  // Floor visuals + spawn disc — only useful on the configure screen, but
+  // safe to call from FPS too (the underlying elements either exist hidden
+  // or no-op when the floor grid/handle are torn down).
+  _updateSpawnSphere();
+  _updateConfigFloorGrid();
+  _updateFloorHandle();
+  _updateFloorValDisplay();
+
+  // Sync both DOM scale displays (configure screen + FPS widget)
+  const cEl = document.getElementById('scale-val');
+  if (cEl) cEl.value = _splatScale.toFixed(2);
+  const fpsEl = document.getElementById('fps-scale-val');
+  if (fpsEl) fpsEl.textContent = `${_splatScale.toFixed(2)}×`;
+
+  // Debounced physics rebuild so dragging/holding stays smooth
+  _queueScalePhysics();
+
+  // Auto-save to per-splat memo (also debounced inside)
+  _saveSplatMemo();
+}
+
+// Wrap loadSplat so every new splat starts at scale 1.0. The original is a
+// function declaration so its binding is reassignable in module scope, and
+// every call site (preset load, upload, drag-drop, library click) resolves
+// the binding at call time — they all get the wrapped version.
+const _originalLoadSplat = loadSplat;
+loadSplat = function _wrappedLoadSplat(...args) {
+  _splatScale = 1.0;
+  const el = document.getElementById('scale-val');
+  if (el) el.value = '1.00';
+  return _originalLoadSplat.apply(this, args);
+};
+
+document.getElementById('scale-val')?.addEventListener('change', (e) => {
+  const v = parseFloat(e.target.value);
+  if (isNaN(v)) { e.target.value = _splatScale.toFixed(2); return; }
+  applySplatScale(v);
+});
+
+// Multiplicative steppers (×1.10 / ÷1.10) with hold-to-repeat
+const SCALE_FACTOR = 1.10;
+let _scaleHoldTimer = null;
+const _startScaleHold = (factor) => {
+  applySplatScale(_splatScale * factor);
+  _scaleHoldTimer = setInterval(() => applySplatScale(_splatScale * factor), 80);
+};
+const _stopScaleHold = () => { if (_scaleHoldTimer) { clearInterval(_scaleHoldTimer); _scaleHoldTimer = null; } };
+
+document.getElementById('scale-dn')?.addEventListener('mousedown', () => _startScaleHold(1 / SCALE_FACTOR));
+document.getElementById('scale-up')?.addEventListener('mousedown', () => _startScaleHold(SCALE_FACTOR));
+document.addEventListener('mouseup', _stopScaleHold);
+document.getElementById('scale-dn')?.addEventListener('mouseleave', _stopScaleHold);
+document.getElementById('scale-up')?.addEventListener('mouseleave', _stopScaleHold);
+
+// ── FPS-mode scale buttons (in the top-centre widget during gameplay) ───────
+// Same multiplicative stepping; applySplatScale is debounced internally so
+// holding the button stays smooth at 60 fps.
+document.getElementById('fps-scale-dn')?.addEventListener('mousedown', () => _startScaleHold(1 / SCALE_FACTOR));
+document.getElementById('fps-scale-up')?.addEventListener('mousedown', () => _startScaleHold(SCALE_FACTOR));
+document.getElementById('fps-scale-dn')?.addEventListener('mouseleave', _stopScaleHold);
+document.getElementById('fps-scale-up')?.addEventListener('mouseleave', _stopScaleHold);
+
+// ── "Snap Floor Here" — set floor to whatever surface is directly under the
+// camera right now. Raycasts down against the live collision target (the
+// voxel collider GLB if loaded, else the bbox cage). If nothing's hit we
+// fall back to "current position minus eye height", which still gives a
+// reasonable result.
+const _snapRay = new THREE.Raycaster();
+const _SNAP_DOWN = new THREE.Vector3(0, -1, 0);
+const _EYE_HEIGHT = 1.5;
+function _snapFloorToCamera() {
+  if (!activeSplatMesh) return;
+  _snapRay.set(camera.position.clone(), _SNAP_DOWN);
+  _snapRay.far = 2000;
+  const targets = [];
+  if (_voxelGlbScene) targets.push(_voxelGlbScene);
+  else if (_splatCage) targets.push(_splatCage);
+  let hitY = null;
+  if (targets.length) {
+    const hits = _snapRay.intersectObjects(targets, true);
+    // First hit BELOW the camera that isn't the safety floor slab
+    for (const h of hits) {
+      if (h.point.y < camera.position.y - 0.05) { hitY = h.point.y; break; }
+    }
+  }
+  if (hitY === null) hitY = camera.position.y - _EYE_HEIGHT;
+  setFloor(hitY);
+}
+document.getElementById('fps-snap-floor')?.addEventListener('click', _snapFloorToCamera);
 
 // ─── Animate ──────────────────────────────────────────────────────────────────
 const clock = new Timer();
