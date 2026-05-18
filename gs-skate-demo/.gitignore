@@ -1,0 +1,8 @@
+node_modules/
+dist/
+collision-tool/node_modules/
+collision-tool/dist/
+skate-game/node_modules/
+skate-game/dist/
+skate-game/public/racing/uploaded.ply
+skate-game/public/racing/uploaded.collision.glb

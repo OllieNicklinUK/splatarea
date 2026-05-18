@@ -1,0 +1,18 @@
+{
+  "name": "gs-skate-demo-collision-tool",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@mkkellogg/gaussian-splats-3d": "^0.4.7",
+    "three": "^0.184.0"
+  },
+  "devDependencies": {
+    "vite": "^5.0.8"
+  }
+}

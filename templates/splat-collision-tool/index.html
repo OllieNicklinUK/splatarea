@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Splat Collision Mapper</title>
+  <link rel="icon" href="data:,">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'SF Mono', 'Consolas', 'Menlo', monospace;
+      background: #0d1117;
+      color: #c9d1d9;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    #header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 14px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      flex-shrink: 0;
+    }
+    #header h1 { font-size: 13px; font-weight: 600; color: #f0f6fc; }
+    #status-text { font-size: 11px; color: #8b949e; }
+
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      transition: background .3s;
+    }
+    .dot.idle    { background: #30363d; }
+    .dot.loading { background: #d29922; animation: pulse 1s ease-in-out infinite; }
+    .dot.ready   { background: #238636; }
+    .dot.error   { background: #da3633; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+    /* ── Layout ── */
+    #main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 228px; flex-shrink: 0;
+      background: #161b22;
+      border-right: 1px solid #30363d;
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+      padding: 12px 10px; gap: 14px;
+    }
+
+    .section-title {
+      font-size: 9px; letter-spacing: .1em;
+      color: #8b949e; text-transform: uppercase;
+      font-weight: 700; margin-bottom: 7px;
+    }
+
+    #dropzone {
+      border: 2px dashed #30363d; border-radius: 7px;
+      padding: 18px 10px; text-align: center;
+      cursor: pointer; user-select: none;
+      transition: border-color .2s, background .2s;
+    }
+    #dropzone:hover, #dropzone.drag-over {
+      border-color: #388bfd; background: rgba(56,139,253,.06);
+    }
+    #dropzone.has-file { border-color: #238636; background: rgba(35,134,54,.06); }
+    .dz-icon { font-size: 22px; margin-bottom: 5px; }
+    .dz-label { font-size: 10px; color: #8b949e; line-height: 1.4; }
+    #dropzone.has-file .dz-label { color: #3fb950; }
+
+    .divider { border: none; border-top: 1px solid #21262d; margin: 0; }
+
+    .row {
+      display: flex; align-items: center; gap: 6px; margin-bottom: 7px;
+    }
+    .row:last-child { margin-bottom: 0; }
+    .row label { font-size: 11px; color: #8b949e; flex: 1; }
+    .row .val {
+      font-size: 11px; color: #c9d1d9;
+      min-width: 38px; text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    input[type=range] { width: 100%; accent-color: #388bfd; cursor: pointer; margin-bottom: 4px; }
+
+    input[type=number] {
+      width: 68px; background: #21262d;
+      border: 1px solid #30363d; border-radius: 4px;
+      color: #c9d1d9; padding: 3px 6px;
+      font-size: 11px; font-family: inherit; text-align: right;
+    }
+    input[type=number]:focus { outline: 1px solid #388bfd; border-color: #388bfd; }
+    input[type=checkbox] { accent-color: #388bfd; cursor: pointer; }
+    input[type=color] {
+      width: 28px; height: 22px; padding: 2px;
+      background: #21262d; border: 1px solid #30363d;
+      border-radius: 4px; cursor: pointer;
+    }
+
+    .btn {
+      display: block; width: 100%; padding: 8px; border: none;
+      border-radius: 6px; font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: background .15s;
+    }
+    .btn-green { background: #238636; color: #fff; }
+    .btn-green:hover:not(:disabled) { background: #2ea043; }
+    .btn-green:disabled { opacity: .4; cursor: default; }
+    .btn-dim { background: #21262d; color: #8b949e; margin-top: 5px; font-size: 11px; }
+    .btn-dim:hover:not(:disabled) { background: #30363d; color: #c9d1d9; }
+    .btn-dim:disabled { opacity: .4; cursor: default; }
+
+    .btn-play {
+      background: #1f6feb; color: #fff; font-size: 13px;
+      padding: 10px; letter-spacing: 0.03em;
+    }
+    .btn-play:hover:not(:disabled) { background: #388bfd; }
+    .btn-play:disabled { opacity: .3; cursor: default; }
+
+    /* ── Viewport ── */
+    #viewport-wrap {
+      flex: 1; display: flex; flex-direction: column;
+      overflow: hidden; position: relative;
+    }
+    #viewport { flex: 1; display: block; width: 100%; min-height: 0; }
+
+    /* ── Hint overlay ── */
+    #hint {
+      position: absolute; inset: 0; bottom: 110px;
+      z-index: 5; pointer-events: none;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 8px; color: #21262d;
+    }
+    #hint .hi { font-size: 38px; }
+    #hint .ht { font-size: 12px; }
+
+    /* ── Log ── */
+    #log {
+      height: 110px; flex-shrink: 0;
+      background: #0d1117; border-top: 1px solid #21262d;
+      padding: 6px 10px; overflow-y: auto;
+      font-size: 10px; color: #8b949e; line-height: 1.5;
+      position: relative; z-index: 10;
+    }
+    .ll { white-space: pre-wrap; }
+    .ll.err { color: #f85149; }
+    .ll.ok  { color: #3fb950; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <div class="dot idle" id="dot"></div>
+  <h1>Splat Collision Mapper</h1>
+  <span id="status-text">Drop a .ply file to start</span>
+</div>
+
+<div id="main">
+  <!-- Sidebar -->
+  <div id="sidebar">
+
+    <div>
+      <div class="section-title">Scene</div>
+      <div id="dropzone">
+        <div class="dz-icon">📂</div>
+        <div class="dz-label">Drop a .ply file here<br>or click to browse</div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div>
+      <div class="section-title">Scale</div>
+      <div class="row"><label>World scale</label><span class="val" id="scale-val">1.00×</span></div>
+      <input type="range" id="scale" min="0.05" max="5" step="0.01" value="1.0">
+    </div>
+
+    <hr class="divider">
+
+    <div>
+      <div class="section-title">Collision Mesh</div>
+      <button class="btn btn-green" id="generate-btn" disabled>Generate Collision</button>
+      <button class="btn btn-dim"   id="clear-btn"    disabled>Clear Mesh</button>
+
+      <div class="row" style="margin-top:12px;">
+        <label>Show overlay</label>
+        <input type="checkbox" id="show-mesh" checked>
+      </div>
+      <div class="row">
+        <label>Opacity</label><span class="val" id="opacity-val">65%</span>
+      </div>
+      <input type="range" id="mesh-opacity" min="0.05" max="1" step="0.05" value="0.65">
+      <div class="row">
+        <label>Wireframe</label>
+        <input type="checkbox" id="wireframe" checked>
+      </div>
+      <div class="row">
+        <label>Colour</label>
+        <input type="color" id="color-swatch" value="#00ff88">
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div>
+      <div class="section-title">Voxelizer Settings</div>
+      <div class="row">
+        <label>Voxel size (m)</label>
+        <input type="number" id="voxel-size" value="0.10" min="0.05" max="1.0" step="0.01">
+      </div>
+      <div class="row">
+        <label>Opacity cutoff</label>
+        <input type="number" id="op-thresh" value="0.20" min="0.05" max="0.95" step="0.05">
+      </div>
+      <div class="row">
+        <label>Seed Y (m)</label>
+        <input type="number" id="seed-y" value="1.0" min="-20" max="20" step="0.1">
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <label>Quality mode</label>
+        <input type="checkbox" id="quality-mode">
+      </div>
+      <div id="quality-hint" style="font-size:10px;color:#8b949e;line-height:1.4;display:none;margin-top:4px;">
+        8× dilation + 20-iter Taubin smoothing.<br>Seals holes up to ~1.2m, very smooth edges.
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div>
+      <div class="section-title">Launch</div>
+      <button class="btn btn-play" id="play-btn" disabled>▶ Play Racing</button>
+      <div id="play-hint" style="font-size:10px;color:#8b949e;margin-top:6px;line-height:1.4;display:none">
+        Opens the racing game at 5174 using this PLY + collision mesh
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <!-- Viewport -->
+  <div id="viewport-wrap">
+    <canvas id="viewport"></canvas>
+    <div id="hint">
+      <div class="hi">✦</div>
+      <div class="ht">Load a .ply file to begin</div>
+    </div>
+    <div id="log"></div>
+  </div>
+
+</div><!-- /main -->
+
+<script type="module" src="/src/main.js"></script>
+</body>
+</html>
