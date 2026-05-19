@@ -15,8 +15,20 @@ function _superSplatId(url) {
   return null;
 }
 
+// Standard Gaussian splat PLY property order (must match what Spark/GS loaders expect)
+const PLY_PROPS = [
+  'x','y','z',
+  'nx','ny','nz',
+  'f_dc_0','f_dc_1','f_dc_2',
+  'opacity',
+  'scale_0','scale_1','scale_2',
+  'rot_0','rot_1','rot_2','rot_3',
+];
+
 // Fetches a superspl.at scene via @playcanvas/splat-transform and writes a
-// minimal binary PLY (x,y,z,opacity) to outputPlyPath.
+// full-fidelity binary PLY (all Gaussian parameters) to outputPlyPath.
+// The resulting file is both renderable by the Spark splat viewer AND
+// parseable by the voxelizer (which only reads x/y/z/opacity).
 async function _fetchSuperSplat(id, outputPlyPath, send) {
   const { readSog, UrlReadFileSystem } = await import('@playcanvas/splat-transform');
   const baseUrl = `https://d28zzqy0iyovbz.cloudfront.net/${id}/v1/`;
@@ -25,40 +37,37 @@ async function _fetchSuperSplat(id, outputPlyPath, send) {
   send({ type: 'log', text: 'Downloading & decoding splat components (this may take a minute)…' });
   const dt = await readSog(fileSystem, 'meta.json');
 
-  const xCol   = dt.columns.find(c => c.name === 'x');
-  const yCol   = dt.columns.find(c => c.name === 'y');
-  const zCol   = dt.columns.find(c => c.name === 'z');
-  const opCol  = dt.columns.find(c => c.name === 'opacity');
-  if (!xCol || !yCol || !zCol) throw new Error('DataTable missing x/y/z columns');
-
+  const xCol = dt.columns.find(c => c.name === 'x');
+  if (!xCol) throw new Error('DataTable missing x column');
   const count = xCol.data.length;
-  send({ type: 'log', text: `Decoded ${count.toLocaleString()} Gaussians. Writing PLY…` });
+  send({ type: 'log', text: `Decoded ${count.toLocaleString()} Gaussians. Writing full PLY…` });
 
-  // Write minimal binary PLY with x,y,z + opacity
-  const hasOp = !!opCol;
-  const header = [
+  // Build column map — present columns get their data, absent ones (e.g. nx/ny/nz) get zeros
+  const colMap = new Map(dt.columns.map(c => [c.name, c.data]));
+  const activeProps = PLY_PROPS.filter(p => colMap.has(p) || ['nx','ny','nz'].includes(p));
+
+  const headerLines = [
     'ply',
     'format binary_little_endian 1.0',
     `element vertex ${count}`,
-    'property float x',
-    'property float y',
-    'property float z',
-    hasOp ? 'property float opacity' : null,
+    ...activeProps.map(p => `property float ${p}`),
     'end_header',
-  ].filter(Boolean).join('\n') + '\n';
+  ];
+  const header = headerLines.join('\n') + '\n';
 
-  const floatsPerVertex = hasOp ? 4 : 3;
+  const floatsPerVertex = activeProps.length;
   const buf = Buffer.allocUnsafe(header.length + count * floatsPerVertex * 4);
   buf.write(header, 0, 'utf8');
   let offset = header.length;
   for (let i = 0; i < count; i++) {
-    buf.writeFloatLE(xCol.data[i],  offset);      offset += 4;
-    buf.writeFloatLE(yCol.data[i],  offset);      offset += 4;
-    buf.writeFloatLE(zCol.data[i],  offset);      offset += 4;
-    if (hasOp) { buf.writeFloatLE(opCol.data[i], offset); offset += 4; }
+    for (const p of activeProps) {
+      const val = colMap.has(p) ? colMap.get(p)[i] : 0;
+      buf.writeFloatLE(val, offset);
+      offset += 4;
+    }
   }
   fs.writeFileSync(outputPlyPath, buf);
-  send({ type: 'log', text: `PLY written (${(buf.length / 1e6).toFixed(1)} MB, ${count.toLocaleString()} vertices).` });
+  send({ type: 'log', text: `PLY written (${(buf.length / 1e6).toFixed(1)} MB, ${count.toLocaleString()} vertices, ${activeProps.length} props each).` });
 }
 
 export default defineConfig({
@@ -160,7 +169,7 @@ export default defineConfig({
           jobs.get(jobId).status = 'processing';
 
           try {
-            const voxMod = await import('../../standalone/scripts/ply-voxelizer.mjs');
+            const voxMod = await import('./scripts/ply-voxelizer.mjs');
             const voxFn  = voxMod.voxelizePlyQuality;
             const { plyFloorY, splatOffsetX, splatOffsetY, splatOffsetZ } =
               await voxFn(plyPath, seedPos, voxelSz, glbPath, (t) => send({ type: 'log', text: t }), opThresh);
