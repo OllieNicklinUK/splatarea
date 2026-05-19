@@ -160,7 +160,7 @@ export default defineConfig({
           jobs.get(jobId).status = 'processing';
 
           try {
-            const voxMod = await import('./scripts/ply-voxelizer.mjs');
+            const voxMod = await import('../../standalone/scripts/ply-voxelizer.mjs');
             const voxFn  = voxMod.voxelizePlyQuality;
             const { plyFloorY, splatOffsetX, splatOffsetY, splatOffsetZ } =
               await voxFn(plyPath, seedPos, voxelSz, glbPath, (t) => send({ type: 'log', text: t }), opThresh);
