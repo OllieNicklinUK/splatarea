@@ -22,6 +22,8 @@ const colorSwatch  = document.getElementById('color-swatch');
 const voxelSize    = document.getElementById('voxel-size');
 const opThresh     = document.getElementById('op-thresh');
 const seedY        = document.getElementById('seed-y');
+const urlInput     = document.getElementById('url-input');
+const urlLoadBtn   = document.getElementById('url-load-btn');
 const playBtn      = document.getElementById('play-btn');
 const playHint     = document.getElementById('play-hint');
 const canvas       = document.getElementById('viewport');
@@ -47,6 +49,7 @@ let splatViewer   = null;
 let splatBlobUrl  = null;
 let collisionGroup= null;
 let currentFile   = null;
+let currentUrl    = null; // alternative to file — remote PLY or superspl.at URL
 let currentScale  = 1.0;
 
 // Auto-detected values from the collision mesh, passed to the racing game
@@ -164,25 +167,44 @@ dropzone.addEventListener('click', () => {
   inp.click();
 });
 
+// ── URL input ─────────────────────────────────────────────────────────────────
+function loadUrl(url) {
+  url = url.trim();
+  if (!url) return;
+  currentUrl  = url;
+  currentFile = null;
+  clearCollision();
+  detectedFloorY = null;
+  hint.style.display = 'none';
+  dropzone.classList.remove('has-file');
+  dropzone.querySelector('.dz-label').textContent = 'Drop a .ply file here\nor click to browse';
+  setStatus('ready', `URL set: ${url}`);
+  log(`URL loaded: ${url}`);
+  generateBtn.disabled = false;
+}
+urlLoadBtn.addEventListener('click', () => loadUrl(urlInput.value));
+urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') loadUrl(urlInput.value); });
+
 // ── Collision generation ──────────────────────────────────────────────────────
 generateBtn.addEventListener('click', generateCollision);
 
 async function generateCollision() {
-  if (!currentFile) return;
+  if (!currentFile && !currentUrl) return;
   generateBtn.disabled = true;
   setStatus('loading', 'Generating collision mesh…');
-  log('Uploading PLY to server voxelizer…');
+  log(currentUrl ? `Fetching remote scene: ${currentUrl}` : 'Uploading PLY to server voxelizer…');
 
   const sz      = parseFloat(voxelSize.value) || 0.10;
   const thresh  = parseFloat(opThresh.value)  || 0.20;
   const sy      = parseFloat(seedY.value)     || 1.0;
   const params  = new URLSearchParams({ seedPos: `0,${sy},0`, voxelSize: sz, opacityThreshold: thresh, mode: 'quality' });
+  if (currentUrl) params.set('url', currentUrl);
 
   try {
     const resp = await fetch(`/api/process-splat?${params}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/octet-stream' },
-      body: currentFile,
+      body: currentUrl ? null : currentFile,
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
 

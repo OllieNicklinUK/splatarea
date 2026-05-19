@@ -3,6 +3,64 @@ import { tmpdir } from 'os';
 import { defineConfig } from 'vite';
 import fs from 'fs';
 
+// ── superspl.at URL helper ─────────────────────────────────────────────────────
+// Returns the scene ID if the URL is a superspl.at viewer link, else null.
+function _superSplatId(url) {
+  try {
+    const u = new URL(url);
+    if ((u.hostname === 'superspl.at' || u.hostname === 'www.superspl.at') && u.searchParams.has('id')) {
+      return u.searchParams.get('id');
+    }
+  } catch {}
+  return null;
+}
+
+// Fetches a superspl.at scene via @playcanvas/splat-transform and writes a
+// minimal binary PLY (x,y,z,opacity) to outputPlyPath.
+async function _fetchSuperSplat(id, outputPlyPath, send) {
+  const { readSog, UrlReadFileSystem } = await import('@playcanvas/splat-transform');
+  const baseUrl = `https://d28zzqy0iyovbz.cloudfront.net/${id}/v1/`;
+  const fileSystem = new UrlReadFileSystem(baseUrl);
+
+  send({ type: 'log', text: 'Downloading & decoding splat components (this may take a minute)…' });
+  const dt = await readSog(fileSystem, 'meta.json');
+
+  const xCol   = dt.columns.find(c => c.name === 'x');
+  const yCol   = dt.columns.find(c => c.name === 'y');
+  const zCol   = dt.columns.find(c => c.name === 'z');
+  const opCol  = dt.columns.find(c => c.name === 'opacity');
+  if (!xCol || !yCol || !zCol) throw new Error('DataTable missing x/y/z columns');
+
+  const count = xCol.data.length;
+  send({ type: 'log', text: `Decoded ${count.toLocaleString()} Gaussians. Writing PLY…` });
+
+  // Write minimal binary PLY with x,y,z + opacity
+  const hasOp = !!opCol;
+  const header = [
+    'ply',
+    'format binary_little_endian 1.0',
+    `element vertex ${count}`,
+    'property float x',
+    'property float y',
+    'property float z',
+    hasOp ? 'property float opacity' : null,
+    'end_header',
+  ].filter(Boolean).join('\n') + '\n';
+
+  const floatsPerVertex = hasOp ? 4 : 3;
+  const buf = Buffer.allocUnsafe(header.length + count * floatsPerVertex * 4);
+  buf.write(header, 0, 'utf8');
+  let offset = header.length;
+  for (let i = 0; i < count; i++) {
+    buf.writeFloatLE(xCol.data[i],  offset);      offset += 4;
+    buf.writeFloatLE(yCol.data[i],  offset);      offset += 4;
+    buf.writeFloatLE(zCol.data[i],  offset);      offset += 4;
+    if (hasOp) { buf.writeFloatLE(opCol.data[i], offset); offset += 4; }
+  }
+  fs.writeFileSync(outputPlyPath, buf);
+  send({ type: 'log', text: `PLY written (${(buf.length / 1e6).toFixed(1)} MB, ${count.toLocaleString()} vertices).` });
+}
+
 export default defineConfig({
   plugins: [
     // ── COEP/COOP headers — required for SharedArrayBuffer in the splat sorter ──
@@ -60,27 +118,50 @@ export default defineConfig({
           const seedPos    = qs.seedPos  || '0,1,0';
           const voxelSz    = parseFloat(qs.voxelSize)        || 0.10;
           const opThresh   = parseFloat(qs.opacityThreshold) || 0.20;
-          const qualityMode = qs.mode === 'quality';
+          const remoteUrl  = qs.url || null;
 
-          try {
-            send({ type: 'log', text: 'Receiving PLY…' });
-            const ws = fs.createWriteStream(plyPath);
-            req.pipe(ws);
-            await new Promise((ok, fail) => { ws.on('finish', ok); ws.on('error', fail); });
-          } catch (e) {
-            send({ type: 'error', text: `Upload failed: ${e.message}` });
-            res.end(); return;
+          if (remoteUrl) {
+            // ── Remote URL mode ───────────────────────────────────────────────
+            try {
+              const sogId = _superSplatId(remoteUrl);
+              if (sogId) {
+                send({ type: 'log', text: `Detected superspl.at scene ${sogId}. Fetching…` });
+                await _fetchSuperSplat(sogId, plyPath, send);
+              } else if (/\.ply(\?.*)?$/i.test(remoteUrl)) {
+                send({ type: 'log', text: `Fetching PLY from ${remoteUrl}…` });
+                const resp = await fetch(remoteUrl);
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const buf = await resp.arrayBuffer();
+                fs.writeFileSync(plyPath, Buffer.from(buf));
+                send({ type: 'log', text: `PLY downloaded (${(buf.byteLength / 1e6).toFixed(1)} MB).` });
+              } else {
+                send({ type: 'error', text: 'Unsupported URL. Provide a direct .ply link or a superspl.at viewer URL (https://superspl.at/s?id=…).' });
+                res.end(); return;
+              }
+            } catch (e) {
+              send({ type: 'error', text: `Fetch failed: ${e.message}` });
+              res.end(); return;
+            }
+          } else {
+            // ── Upload mode ───────────────────────────────────────────────────
+            try {
+              send({ type: 'log', text: 'Receiving PLY…' });
+              const ws = fs.createWriteStream(plyPath);
+              req.pipe(ws);
+              await new Promise((ok, fail) => { ws.on('finish', ok); ws.on('error', fail); });
+            } catch (e) {
+              send({ type: 'error', text: `Upload failed: ${e.message}` });
+              res.end(); return;
+            }
           }
 
           const plySize = fs.statSync(plyPath).size;
-          const modeLabel = qualityMode ? 'quality (Beer-Lambert + Taubin)' : 'fast';
-          send({ type: 'log', text: `PLY received (${(plySize / 1e6).toFixed(1)} MB). Running ${modeLabel} voxelizer…` });
+          send({ type: 'log', text: `PLY ready (${(plySize / 1e6).toFixed(1)} MB). Running quality voxelizer…` });
           jobs.get(jobId).status = 'processing';
 
           try {
-            // Import the standalone voxelizer (shared across templates)
-            const voxMod = await import('../../standalone/scripts/ply-voxelizer.mjs');
-            const voxFn  = qualityMode ? voxMod.voxelizePlyQuality : voxMod.voxelizePly;
+            const voxMod = await import('./scripts/ply-voxelizer.mjs');
+            const voxFn  = voxMod.voxelizePlyQuality;
             const { plyFloorY, splatOffsetX, splatOffsetY, splatOffsetZ } =
               await voxFn(plyPath, seedPos, voxelSz, glbPath, (t) => send({ type: 'log', text: t }), opThresh);
             // Mirror to splat-arena racing folder.
@@ -89,7 +170,7 @@ export default defineConfig({
             // GLB: small copy (typically 1–20 MB).
             let racingReady = false;
             try {
-              const arenaDir = resolve(__dirname, '../splat-arena/public/racing');
+              const arenaDir = resolve(__dirname, '../skate-game/public/racing');
               fs.mkdirSync(arenaDir, { recursive: true });
               const destPly = resolve(arenaDir, 'uploaded.ply');
               const destGlb = resolve(arenaDir, 'uploaded.collision.glb');
