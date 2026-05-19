@@ -58,6 +58,7 @@ let detectedSpawnX      = 0;
 let detectedSpawnZ      = 0;
 let detectedSpawnRadius = 8;
 let detectedSplatOffset = { x: 0, y: 0, z: 0 };
+let detectedSplatUrl    = null; // original URL when loaded from remote source
 
 // ── Resize ────────────────────────────────────────────────────────────────────
 function resize() {
@@ -235,6 +236,7 @@ async function generateCollision() {
           log(`Normalised — floor Y: ${detectedFloorY.toFixed(2)} m, splat offset: (${detectedSplatOffset.x.toFixed(2)}, ${detectedSplatOffset.y.toFixed(2)}, ${detectedSplatOffset.z.toFixed(2)})`, 'ok');
           // Reposition the splat viewer in the preview to match the normalised collision mesh
           if (splatViewer) splatViewer.position.set(detectedSplatOffset.x, detectedSplatOffset.y, detectedSplatOffset.z);
+          detectedSplatUrl = currentUrl || null;
           if (ev.racingReady) {
             playBtn.disabled = false;
             playHint.style.display = 'block';
@@ -430,6 +432,7 @@ playBtn.addEventListener('click', () => {
     splatOffsetY: detectedSplatOffset.y.toFixed(4),
     splatOffsetZ: detectedSplatOffset.z.toFixed(4),
   });
+  if (detectedSplatUrl) params.set('splatUrl', detectedSplatUrl);
   window.open(`http://127.0.0.1:5174/racing/?${params}`, '_blank');
 });
 

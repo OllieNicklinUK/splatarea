@@ -127,7 +127,14 @@
       var p = new URLSearchParams(location.search);
       if (p.has('floorY')) {
         try {
-          localStorage.setItem('sa-cfg:racing:uploaded.ply', JSON.stringify({
+          var splatUrl = p.get('splatUrl') || null;
+          // Config key: use the PLY filename extracted from splatUrl (if direct .ply),
+          // otherwise fall back to 'uploaded.ply' (superspl.at and other remote sources
+          // are decoded and mirrored to uploaded.ply by the collision mapper).
+          var plyName = (splatUrl && /\.ply(\?|$)/i.test(splatUrl))
+            ? splatUrl.split('/').pop().split('?')[0]
+            : 'uploaded.ply';
+          localStorage.setItem('sa-cfg:racing:' + plyName, JSON.stringify({
             floorY:       parseFloat(p.get('floorY')),
             spawnX:       parseFloat(p.get('spawnX')       || '0'),
             spawnZ:       parseFloat(p.get('spawnZ')       || '0'),
@@ -138,6 +145,7 @@
             splatOffsetZ: parseFloat(p.get('splatOffsetZ') || '0'),
             locked:       true,
           }));
+          if (splatUrl) window._gsSplatUrl = splatUrl;
         } catch(e) {}
       }
     })();
@@ -145,7 +153,10 @@
   <script>
     window.GAME_CONFIG = {
       title:       'GS Skate Demo',
-      splatUrl:    null,
+      // splatUrl: set from URL param if provided (direct .ply link loads directly;
+      // superspl.at and other remote sources fall back to uploaded.ply which the
+      // collision mapper mirrors locally).
+      splatUrl:    window._gsSplatUrl || null,
       colliderUrl: null,
       flipY:       true,
       floorY:      null,

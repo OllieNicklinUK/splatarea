@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Drift Zone · Splat Arena</title>
+  <title>GS Skate Demo</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
@@ -92,7 +92,7 @@
   <canvas id="viewport"></canvas>
 
   <div id="loading">
-    <div class="load-title">Drift Zone</div>
+    <div class="load-title">GS Skate Demo</div>
     <div class="spinner"></div>
     <div class="load-status" id="load-status">Initialising…</div>
   </div>
@@ -102,7 +102,7 @@
     <span id="racing-hint">WASD drive · Space handbrake</span>
   </div>
 
-  <a id="back-btn" href="../">← Hub</a>
+  <a id="back-btn" href="http://127.0.0.1:3030">← Collision Mapper</a>
 
   <div id="collider-status"></div>
 
@@ -127,7 +127,14 @@
       var p = new URLSearchParams(location.search);
       if (p.has('floorY')) {
         try {
-          localStorage.setItem('sa-cfg:racing:uploaded.ply', JSON.stringify({
+          var splatUrl = p.get('splatUrl') || null;
+          // Config key: use the PLY filename extracted from splatUrl (if direct .ply),
+          // otherwise fall back to 'uploaded.ply' (superspl.at and other remote sources
+          // are decoded and mirrored to uploaded.ply by the collision mapper).
+          var plyName = (splatUrl && /\.ply(\?|$)/i.test(splatUrl))
+            ? splatUrl.split('/').pop().split('?')[0]
+            : 'uploaded.ply';
+          localStorage.setItem('sa-cfg:racing:' + plyName, JSON.stringify({
             floorY:       parseFloat(p.get('floorY')),
             spawnX:       parseFloat(p.get('spawnX')       || '0'),
             spawnZ:       parseFloat(p.get('spawnZ')       || '0'),
@@ -138,14 +145,18 @@
             splatOffsetZ: parseFloat(p.get('splatOffsetZ') || '0'),
             locked:       true,
           }));
+          if (splatUrl) window._gsSplatUrl = splatUrl;
         } catch(e) {}
       }
     })();
   </script>
   <script>
     window.GAME_CONFIG = {
-      title:       'Drift Zone',
-      splatUrl:    null,
+      title:       'GS Skate Demo',
+      // splatUrl: set from URL param if provided (direct .ply link loads directly;
+      // superspl.at and other remote sources fall back to uploaded.ply which the
+      // collision mapper mirrors locally).
+      splatUrl:    window._gsSplatUrl || null,
       colliderUrl: null,
       flipY:       true,
       floorY:      null,
