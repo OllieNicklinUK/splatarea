@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { Viewer, SceneFormat } from '@mkkellogg/gaussian-splats-3d';
+import { generateCollision as _webgpuCollision, isWebGPUAvailable } from './shared/collision/client-collider.js';
 
 // ── UI refs ───────────────────────────────────────────────────────────────────
 const dot          = document.getElementById('dot');
@@ -256,11 +257,38 @@ function loadUrl(url) {
   clearCollision();
   detectedFloorY = null;
   hint.style.display = 'none';
-  dropzone.classList.remove('has-file');
-  dropzone.querySelector('.dz-label').textContent = 'Drop a .ply file here\nor click to browse';
-  setStatus('ready', `URL set: ${url}`);
-  log(`URL loaded: ${url}`);
-  generateBtn.disabled = false;
+
+  const shortName = url.split('/').pop().split('?')[0] || 'remote.ply';
+  dropzone.classList.add('has-file');
+  dropzone.querySelector('.dz-label').textContent = shortName;
+  setStatus('loading', `Loading: ${shortName}`);
+  log(`Loading URL: ${url}`);
+
+  if (splatViewer) {
+    if (splatViewer.splatMesh) scene.remove(splatViewer.splatMesh);
+    splatViewer.dispose();
+    splatViewer = null;
+  }
+  if (splatBlobUrl) { URL.revokeObjectURL(splatBlobUrl); splatBlobUrl = null; }
+
+  splatViewer = _makeSplatViewer();
+  splatViewer.addSplatScene(url, {
+    format:                     SceneFormat.Ply,
+    splatAlphaRemovalThreshold: 5,
+    showLoadingUI:              false,
+    rotation:                   [0, 0, 0, 1],
+    onProgress: (pct, label) => {
+      if (label) setStatus('loading', `Splat: ${label}`);
+    },
+  }).then(() => {
+    setStatus('ready', `Loaded — click Generate Collision`);
+    log('Splat loaded from URL.', 'ok');
+    generateBtn.disabled = false;
+  }).catch(err => {
+    setStatus('error', 'URL load failed');
+    log(`URL load error: ${err?.message ?? err}`, 'err');
+    generateBtn.disabled = false;
+  });
 }
 urlLoadBtn.addEventListener('click', () => loadUrl(urlInput.value));
 urlInput.addEventListener('keydown', e => { if (e.key === 'Enter') loadUrl(urlInput.value); });
@@ -272,85 +300,112 @@ async function generateCollision() {
   if (!currentFile && !currentUrl && !currentZip) return;
   generateBtn.disabled = true;
 
-  const sz  = parseFloat(voxelSize.value) || 0.10;
-  const thresh = parseFloat(opThresh.value) || 0.20;
-  const sy  = parseFloat(seedY.value) || 1.0;
-
-  let fetchOpts, params;
-
   if (currentZip) {
-    setStatus('loading', 'Converting voxel.zip to collision mesh…');
-    log(`Converting voxel.zip: ${currentZip.name}…`);
-    params = new URLSearchParams({ seedPos: `0,${sy},0`, mode: 'voxelzip' });
-    fetchOpts = {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/octet-stream' },
-      body: currentZip,
-    };
-  } else {
-    setStatus('loading', 'Generating collision mesh…');
-    log(currentUrl ? `Fetching remote scene: ${currentUrl}` : 'Uploading PLY to server voxelizer…');
-    params = new URLSearchParams({ seedPos: `0,${sy},0`, voxelSize: sz, opacityThreshold: thresh, mode: 'quality' });
-    if (currentUrl) params.set('url', currentUrl);
-    fetchOpts = {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/octet-stream' },
-      body: currentUrl ? null : currentFile,
-    };
+    log('Voxel zip import is not supported in standalone mode — drop a .ply file or enter a URL instead.', 'err');
+    setStatus('error', 'Zip not supported');
+    generateBtn.disabled = false;
+    return;
   }
+
+  if (!isWebGPUAvailable()) {
+    log('WebGPU is not available in this browser. Try Chrome or Edge 113+.', 'err');
+    setStatus('error', 'WebGPU required');
+    generateBtn.disabled = false;
+    return;
+  }
+
+  const sz     = parseFloat(voxelSize.value) || 0.10;
+  const thresh = parseFloat(opThresh.value)  || 0.20;
+  const sy     = parseFloat(seedY.value)     || 1.0;
+
+  setStatus('loading', 'Generating collision mesh…');
+  clearCollision();
 
   try {
-    const resp = await fetch(`/api/process-splat?${params}`, fetchOpts);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    let plyBuffer = null;
+    let plyUrl    = null;
 
-    const reader  = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buf = '';
-    let glbUrl = null;
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buf += decoder.decode(value, { stream: true });
-      const lines = buf.split('\n');
-      buf = lines.pop();
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        let ev;
-        try { ev = JSON.parse(line.slice(6)); } catch { continue; }
-        if (ev.type === 'log')   log(ev.text);
-        if (ev.type === 'error') { log(`Error: ${ev.text}`, 'err'); setStatus('error', 'Voxelizer failed'); generateBtn.disabled = false; return; }
-        if (ev.type === 'done')  {
-          glbUrl = ev.url;
-          log('Collision mesh ready.', 'ok');
-          // Mesh is now normalised: floor = world Y=0. plyFloorY should be 0.
-          detectedFloorY = ev.plyFloorY != null ? -ev.plyFloorY : 0;
-          // Splat offset: reposition the splat viewer so it aligns with the normalised mesh
-          detectedSplatOffset = { x: ev.splatOffsetX ?? 0, y: ev.splatOffsetY ?? 0, z: ev.splatOffsetZ ?? 0 };
-          log(`Normalised — floor Y: ${detectedFloorY.toFixed(2)} m, splat offset: (${detectedSplatOffset.x.toFixed(2)}, ${detectedSplatOffset.y.toFixed(2)}, ${detectedSplatOffset.z.toFixed(2)})`, 'ok');
-          // Reposition the splat viewer in the preview to match the normalised collision mesh
-          const sc0 = _splatScene0();
-          if (sc0) sc0.position.set(detectedSplatOffset.x, detectedSplatOffset.y, detectedSplatOffset.z);
-          detectedSplatUrl = currentUrl || null;
-          if (ev.racingReady || currentZip) {
-            playBtn.disabled = false;
-            playFpsBtn.disabled = false;
-            playPeopleBtn.disabled = false;
-            playKartBtn.disabled = false;
-            playHint.style.display = 'block';
-          }
-        }
-      }
+    if (currentFile) {
+      log(`Reading PLY: ${currentFile.name}…`);
+      plyBuffer = await currentFile.arrayBuffer();
+    } else {
+      log(`Using URL: ${currentUrl}`);
+      plyUrl = currentUrl;
     }
 
-    if (glbUrl) {
-      await loadCollisionMesh(glbUrl);
-      setStatus('ready', 'Collision overlay active');
+    const result = await _webgpuCollision({
+      plyBuffer,
+      plyUrl,
+      seedPos:          [0, sy, 0],
+      voxelSize:        sz,
+      opacityThreshold: thresh,
+      onLog: (text) => { log(text); setStatus('loading', text.slice(0, 80)); },
+    });
+
+    const { positions, indices, gridBounds, plyFloorY } = result;
+
+    // Normalise: translate mesh so floor lands at Y=0 and scene is XZ-centred
+    const cx = (gridBounds.min.x + gridBounds.max.x) / 2;
+    const cz = (gridBounds.min.z + gridBounds.max.z) / 2;
+
+    const normPos = new Float32Array(positions.length);
+    for (let i = 0; i < positions.length; i += 3) {
+      normPos[i]     = positions[i]     - cx;
+      normPos[i + 1] = positions[i + 1] - plyFloorY;
+      normPos[i + 2] = positions[i + 2] - cz;
     }
+
+    // Build THREE geometry directly from voxel data
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(normPos, 3));
+    geo.setIndex(new THREE.BufferAttribute(indices, 1));
+    geo.computeVertexNormals();
+
+    collisionGroup = new THREE.Group();
+    const meshObj  = new THREE.Mesh(geo, makeMeshMat());
+    meshObj.renderOrder = 1;
+    collisionGroup.add(meshObj);
+    scene.add(collisionGroup);
+    collisionGroup.visible = showMesh.checked;
+    applyCollisionTransform();
+    clearBtn.disabled = false;
+
+    // Spawn area from normalised mesh bbox
+    collisionGroup.updateWorldMatrix(true, true);
+    const bbox    = new THREE.Box3().setFromObject(collisionGroup, true);
+    const centre  = bbox.getCenter(new THREE.Vector3());
+    const bboxSz  = bbox.getSize(new THREE.Vector3());
+    detectedSpawnX      = centre.x;
+    detectedSpawnZ      = centre.z;
+    detectedSpawnRadius = Math.max(2, Math.min(bboxSz.x, bboxSz.z) * 0.25);
+
+    // After normalisation the floor is at Y=0 in world space
+    detectedFloorY      = 0;
+
+    // Splat offset aligns the visual splat with the normalised collision mesh
+    detectedSplatOffset = { x: -cx, y: -plyFloorY, z: -cz };
+
+    // Reposition splat preview to match
+    const sc0 = _splatScene0();
+    if (sc0) sc0.position.set(detectedSplatOffset.x, detectedSplatOffset.y, detectedSplatOffset.z);
+
+    detectedSplatUrl = currentUrl || null;
+
+    log(`Collision mesh ready — ${(indices.length / 3).toLocaleString()} triangles | offset (${(-cx).toFixed(2)}, ${(-plyFloorY).toFixed(2)}, ${(-cz).toFixed(2)})`, 'ok');
+    setStatus('ready', 'Collision overlay active');
+
+    playBtn.disabled          = false;
+    playFpsBtn.disabled       = false;
+    playPeopleBtn.disabled    = false;
+    playKartBtn.disabled      = false;
+    playHint.style.display    = 'block';
+    saveAlignmentBtn.disabled = false;
+
   } catch (e) {
-    log(`Request failed: ${e.message}`, 'err');
+    log(`Collision generation failed: ${e.message}`, 'err');
     setStatus('error', 'Failed');
   }
+
   generateBtn.disabled = false;
 }
 
@@ -612,7 +667,7 @@ function saveAlignment() {
   const plyName = detectedSplatUrl
     ? detectedSplatUrl.split('/').pop().split('?')[0]
     : 'uploaded.ply';
-  for (const game of ['racing', 'fps', 'people']) {
+  for (const game of ['racing', 'fps', 'people', 'kart']) {
     localStorage.setItem(`sa-cfg:${game}:${plyName}`, JSON.stringify(gameCfg));
     if (plyName !== 'uploaded.ply') {
       localStorage.setItem(`sa-cfg:${game}:uploaded.ply`, JSON.stringify(gameCfg));

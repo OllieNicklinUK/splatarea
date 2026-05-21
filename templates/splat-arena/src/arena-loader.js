@@ -83,7 +83,7 @@ export async function initArena({
   // ── Discover PLY ─────────────────────────────────────────────────────────
   onStatus('Finding scene file…');
   const plyUrl = await _discoverPly(config);
-  if (!plyUrl) { _showNoSplatMessage('*.ply'); return; }
+  if (!plyUrl) { _showNoSplatMessage(); return; }
   onStatus(`Loading ${plyUrl.split('/').pop()}…`);
 
   const colUrl = config.colliderUrl ? _resolveGameUrl(config.colliderUrl) : null;
@@ -186,25 +186,20 @@ export async function initArena({
 //           config.splatUrl (non-PLY e.g. superspl.at → mirror is uploaded.ply) →
 //           /__find-ply scan → common filenames.
 async function _discoverPly(config) {
-  // 1a. Direct PLY URL — load from it straight away
+  // 0. URL entered via the on-screen form (stored in sessionStorage on reload)
+  const _sessionUrl = sessionStorage.getItem('_splatArenaUrl');
+  if (_sessionUrl) config = { ...config, splatUrl: _sessionUrl };
+
+  // 1a. Direct PLY URL — remote: trust without HEAD (CORS may block it); local: probe first
   if (config.splatUrl && /\.ply(\?|$)/i.test(config.splatUrl)) {
-    const url = /^https?:\/\//i.test(config.splatUrl)
-      ? config.splatUrl
-      : _resolveGameUrl(config.splatUrl);
-    try {
-      const r = await fetch(url, { method: 'HEAD' });
-      if (r.ok) return url;
-    } catch {}
+    if (/^https?:\/\//i.test(config.splatUrl)) return config.splatUrl;
+    const url = _resolveGameUrl(config.splatUrl);
+    try { const r = await fetch(url, { method: 'HEAD' }); if (r.ok) return url; } catch {}
   }
 
-  // 1b. Non-PLY remote URL (e.g. superspl.at) — the collision mapper has already
-  //     decoded and mirrored it to uploaded.ply; skip straight to that file.
-  if (config.splatUrl && !/\.ply(\?|$)/i.test(config.splatUrl)) {
-    const mirror = _resolveGameUrl('./uploaded.ply');
-    try {
-      const r = await fetch(mirror, { method: 'HEAD' });
-      if (r.ok) return mirror;
-    } catch {}
+  // 1b. Any other remote URL — pass directly to SplatMesh (handles .splat etc.)
+  if (config.splatUrl && /^https?:\/\//i.test(config.splatUrl)) {
+    return config.splatUrl;
   }
 
   // 2. Ask the Vite dev-server ply-finder plugin (localhost only — skip in production)
@@ -265,7 +260,9 @@ async function _startColliderGen({ config, box, plyUrl, colUrl, scene, onStatus,
     try {
       const gltf = await _loadGltf(colUrl);
       const voxelMesh = _maybeSimplify(_activateCollider(gltf.scene, scene), scene);
-      const detectedFloor = floorY ?? _estimateFloorFromMesh(voxelMesh, box);
+      const detectedFloor = _estimateFloorFromMesh(voxelMesh, box);
+      onAutoFloor?.(detectedFloor);
+      onVoxelMesh?.(voxelMesh);
       onColliderReady({
         voxelMesh,
         floorY:      detectedFloor,
@@ -275,21 +272,27 @@ async function _startColliderGen({ config, box, plyUrl, colUrl, scene, onStatus,
       onStatus('✓ Collider loaded');
     } catch (e) {
       console.warn('[arena-loader] collider GLB load failed:', e);
-      _fallbackBboxCollider({ box, config, scene, floorY, spawnCx, spawnCz, spawnR, onStatus, onColliderReady });
+      _fallbackBboxCollider({ box, config, scene, spawnCx, spawnCz, spawnR, onStatus, onColliderReady, onAutoFloor, onVoxelMesh });
     }
     return;
   }
 
-  // ── Option A2: auto-detected pre-baked GLB (e.g. written by the collision mapper) ──
-  // If a .collision.glb sits next to the PLY (same name, different extension),
-  // load it immediately — no voxelization needed.
-  if (plyUrl && !colUrl) {
-    const autoGlb = plyUrl.replace(/\.ply$/i, '.collision.glb');
-    try {
-      const probe = await fetch(autoGlb, { method: 'HEAD' });
-      if (probe.ok) {
+  // ── Option A2: auto-detected pre-baked GLB ────────────────────────────────
+  // Checks (in order): PLY-adjacent .collision.glb, then ./uploaded.collision.glb.
+  // The second path lets a bundled package use a pre-generated mesh even when the
+  // visual splat is loaded from a remote URL (where path substitution doesn't apply).
+  if (!colUrl) {
+    const candidateGlbs = [];
+    if (plyUrl) candidateGlbs.push(plyUrl.replace(/\.ply(\?.*)?$/i, '.collision.glb'));
+    const localGlb = _resolveGameUrl('./uploaded.collision.glb');
+    if (!candidateGlbs.includes(localGlb)) candidateGlbs.push(localGlb);
+
+    for (const glbUrl of candidateGlbs) {
+      try {
+        const probe = await fetch(glbUrl, { method: 'HEAD' });
+        if (!probe.ok) continue;
         onStatus('Loading pre-built collision mesh…');
-        const gltf      = await _loadGltf(autoGlb);
+        const gltf      = await _loadGltf(glbUrl);
         const voxelMesh = _maybeSimplify(_activateCollider(gltf.scene, scene), scene);
         const floorY    = center.y - size.y * 0.35;
         onAutoFloor?.(floorY);
@@ -297,8 +300,8 @@ async function _startColliderGen({ config, box, plyUrl, colUrl, scene, onStatus,
         onColliderReady({ voxelMesh, floorY, spawnCenter: { x: spawnCx, z: spawnCz }, spawnRadius: spawnR });
         onStatus('✓ Collision mesh ready');
         return;
-      }
-    } catch {}
+      } catch {}
+    }
   }
 
   // ── Option B: server-side Node.js voxelizer (primary on localhost) ──────────
@@ -545,19 +548,42 @@ async function _serverVoxelizeFallback({ plyUrl, box, config, scene, onStatus, o
   return { voxelMesh, floorY };
 }
 
-function _showNoSplatMessage(path) {
+function _showNoSplatMessage() {
   const loadingEl = document.getElementById('loading');
   const statusEl  = document.getElementById('load-status');
   const spinnerEl = document.querySelector('.spinner');
   if (spinnerEl) spinnerEl.style.display = 'none';
   if (loadingEl) loadingEl.style.display = 'flex';
-  if (statusEl) {
-    statusEl.innerHTML = `
-      <div style="color:#f59e0b;font-size:1rem;margin-bottom:8px">No splat file found</div>
-      <div style="color:#64748b;font-size:0.8rem;line-height:1.7">
-        Drop your <code style="color:#94a3b8">${path}</code><br>
-        and (optionally) <code style="color:#94a3b8">${path.replace(/\.[^.]+$/, '.ply')}</code><br>
-        into this game's folder, then reload.
-      </div>`;
-  }
+  if (!statusEl) return;
+
+  statusEl.innerHTML = `
+    <div style="color:#f59e0b;font-size:1rem;margin-bottom:14px;font-family:sans-serif">
+      Enter your Gaussian Splat URL
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;width:100%;max-width:420px">
+      <input id="_sa-url-inp" type="url"
+        placeholder="https://…/scene.ply  or  superspl.at/…"
+        style="flex:1;padding:9px 12px;background:#0d1117;border:1px solid #30363d;
+               color:#c9d1d9;border-radius:6px;font-family:monospace;font-size:0.8rem;min-width:0"/>
+      <button id="_sa-url-btn"
+        style="padding:9px 18px;background:#f59e0b;color:#000;border:none;
+               border-radius:6px;cursor:pointer;font-weight:700;white-space:nowrap;font-size:0.85rem">
+        Load
+      </button>
+    </div>
+    <div style="color:#475569;font-size:0.72rem;margin-top:10px;text-align:center">
+      Direct .ply link · superspl.at viewer URL
+    </div>`;
+
+  const inp = document.getElementById('_sa-url-inp');
+  const btn = document.getElementById('_sa-url-btn');
+  const go  = () => {
+    const url = inp.value.trim();
+    if (!url) return;
+    sessionStorage.setItem('_splatArenaUrl', url);
+    location.reload();
+  };
+  btn.addEventListener('click', go);
+  inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+  inp.focus();
 }
