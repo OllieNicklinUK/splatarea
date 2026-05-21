@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../coi-serviceworker.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>People Park · Splat Arena</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    #viewport { width: 100%; height: 100%; display: block; }
+
+    #loading {
+      position: fixed; inset: 0;
+      background: #08080e;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 20px;
+      z-index: 100;
+      transition: opacity 0.6s ease;
+    }
+    #loading.hidden { opacity: 0; pointer-events: none; }
+
+    .load-title {
+      font-family: -apple-system, sans-serif;
+      font-size: 2rem; font-weight: 900;
+      color: #f59e0b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #1e1e2e;
+      border-top-color: #f59e0b;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .load-status {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #64748b;
+      max-width: 340px;
+      text-align: center;
+    }
+
+    #people-hud {
+      position: fixed;
+      bottom: 20px; left: 50%;
+      transform: translateX(-50%);
+      display: none;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #people-follow-label {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #94a3b8;
+    }
+
+    #people-follow-btn {
+      background: #1a2a1a; border: 1px solid #2a4a2a;
+      color: #86efac; font-size: 0.8rem; font-family: sans-serif;
+      padding: 6px 14px; border-radius: 6px; cursor: pointer;
+    }
+    #people-follow-btn:hover { border-color: #f59e0b; color: #f59e0b; }
+
+    #collider-status {
+      position: fixed;
+      top: 12px; left: 50%;
+      transform: translateX(-50%);
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: #f59e0b;
+      display: none;
+    }
+
+    #back-btn {
+      position: fixed; top: 14px; left: 14px;
+      background: #10101a; border: 1px solid #1e1e2e;
+      color: #94a3b8; font-size: 0.8rem; font-family: sans-serif;
+      padding: 6px 12px; border-radius: 6px;
+      cursor: pointer; z-index: 50; text-decoration: none;
+    }
+    #back-btn:hover { border-color: #f59e0b; color: #f59e0b; }
+  </style>
+  <script type="module" crossorigin src="../assets/people-5AcvzR_v.js"></script>
+  <link rel="modulepreload" crossorigin href="../assets/GLTFLoader-CdtNo5QH.js">
+  <link rel="modulepreload" crossorigin href="../assets/arena-loader-B0lCRE5C.js">
+</head>
+<body>
+  <canvas id="viewport"></canvas>
+
+  <div id="loading">
+    <div class="load-title">People Park</div>
+    <div class="spinner"></div>
+    <div class="load-status" id="load-status">Initialising…</div>
+  </div>
+
+  <div id="people-hud">
+    <span id="people-follow-label">Overview</span>
+    <button id="people-follow-btn">🎥 Follow</button>
+  </div>
+
+  <div id="collider-status"></div>
+
+  <a id="back-btn" href="/">← Collision Mapper</a>
+
+  <script>
+    (function() {
+      var orig = WebAssembly.instantiateStreaming;
+      WebAssembly.instantiateStreaming = async function(source, imports) {
+        var r = await (source instanceof Promise ? source : Promise.resolve(source));
+        var u = r.url || "";
+        if (!u.startsWith("http://") && !u.startsWith("https://")) {
+          try { var b = await r.clone().arrayBuffer(); return WebAssembly.instantiate(b, imports); } catch(e) {}
+        }
+        return orig.call(WebAssembly, r, imports);
+      };
+    })();
+  </script>
+  <script>
+    (function() {
+      var p = new URLSearchParams(location.search);
+      if (p.has('floorY')) {
+        try {
+          var splatUrl = p.get('splatUrl') || null;
+          var plyName = (splatUrl && /\.ply(\?|$)/i.test(splatUrl))
+            ? splatUrl.split('/').pop().split('?')[0]
+            : 'uploaded.ply';
+          localStorage.setItem('sa-cfg:people:' + plyName, JSON.stringify({
+            _v:           2,
+            floorY:       parseFloat(p.get('floorY')),
+            spawnX:       parseFloat(p.get('spawnX')       || '0'),
+            spawnZ:       parseFloat(p.get('spawnZ')       || '0'),
+            spawnRadius:  parseFloat(p.get('spawnRadius')  || '8'),
+            scale:        parseFloat(p.get('scale')        || '1'),
+            flipX:        p.get('flipX') === '1',
+            flipY:        p.get('flipY') === '1',
+            flipZ:        p.get('flipZ') === '1',
+            splatOffsetX: parseFloat(p.get('splatOffsetX') || '0'),
+            splatOffsetY: parseFloat(p.get('splatOffsetY') || '0'),
+            splatOffsetZ: parseFloat(p.get('splatOffsetZ') || '0'),
+            locked:       true,
+          }));
+          if (splatUrl) window._gsSplatUrl = splatUrl;
+        } catch(e) {}
+      }
+    })();
+  </script>
+  <script>
+    window.GAME_CONFIG = {
+      title:       'People Park',
+      splatUrl:    window._gsSplatUrl || null,
+      colliderUrl: null,
+      flipY:       false,
+      floorY:      null,
+      spawnCenter: null,
+      spawnRadius: null,
+    };
+  </script>
+</body>
+</html>

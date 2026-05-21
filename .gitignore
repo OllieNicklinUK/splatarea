@@ -27,3 +27,30 @@ splats/
 NewtonDemo/node_modules/
 .viverse_agent_memory.json
 .python-env/
+
+# Splat-arena node_modules
+templates/splat-arena/node_modules/
+templates/splat-collision-tool/node_modules/
+gs-skate-demo/collision-tool/node_modules/
+gs-skate-demo/skate-game/node_modules/
+
+# User-uploaded PLY/GLB in docs output and public dirs
+docs/*/uploaded.*
+docs/fps/uploaded.*
+docs/people/uploaded.*
+docs/racing/uploaded.*
+templates/splat-arena/public/*/uploaded.*
+
+# Large PLY splat files (user test data — not source assets)
+templates/splat-arena/**/*.ply
+templates/splat-arena/**/*.voxel/
+templates/splat-arena/**/*.voxel.zip
+"templates/splat-arena/racing/My first GS Forza Horizon 5/"
+gs-skate-demo/**/*.ply
+
+# SuGaR and other large external archives
+SuGaR-main/
+SuGaR-main.zip
+"Alleyway Splat/"
+Starter-Kit-Racing-master/
+Starter-Kit-Racing-master.zip

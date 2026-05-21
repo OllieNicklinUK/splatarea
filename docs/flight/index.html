@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script src="../coi-serviceworker.js"></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sky Racer · Splat Arena</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+    #viewport { width: 100%; height: 100%; display: block; }
+
+    #loading {
+      position: fixed; inset: 0;
+      background: #08080e;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 20px;
+      z-index: 100;
+      transition: opacity 0.6s ease;
+    }
+    #loading.hidden { opacity: 0; pointer-events: none; }
+
+    .load-title {
+      font-family: -apple-system, sans-serif;
+      font-size: 2rem; font-weight: 900;
+      color: #f59e0b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #1e1e2e;
+      border-top-color: #f59e0b;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .load-status {
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #64748b;
+      max-width: 340px;
+      text-align: center;
+    }
+
+    #flight-hud {
+      position: fixed;
+      top: 16px; right: 16px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      color: #e2e8f0;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      align-items: flex-end;
+    }
+
+    #flight-gameover {
+      position: fixed; inset: 0;
+      background: #000000cc;
+      display: none;
+      flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 16px;
+      z-index: 60;
+    }
+    #flight-gameover h2 { color: #f59e0b; font-size: 2rem; font-family: sans-serif; }
+    #flight-gameover p { color: #94a3b8; font-family: monospace; }
+
+    #back-btn {
+      position: fixed; top: 14px; left: 14px;
+      background: #10101a; border: 1px solid #1e1e2e;
+      color: #94a3b8; font-size: 0.8rem; font-family: sans-serif;
+      padding: 6px 12px; border-radius: 6px;
+      cursor: pointer; z-index: 50; text-decoration: none;
+    }
+    #back-btn:hover { border-color: #f59e0b; color: #f59e0b; }
+
+    #collider-status {
+      position: fixed;
+      top: 12px; left: 50%;
+      transform: translateX(-50%);
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: #f59e0b;
+      display: none;
+    }
+  </style>
+  <script type="module" crossorigin src="../assets/flight-DLJvX0no.js"></script>
+  <link rel="modulepreload" crossorigin href="../assets/GLTFLoader-CdtNo5QH.js">
+  <link rel="modulepreload" crossorigin href="../assets/arena-loader-B0lCRE5C.js">
+  <link rel="modulepreload" crossorigin href="../assets/SplatArena-BO0OaQKz.js">
+</head>
+<body>
+  <canvas id="viewport"></canvas>
+
+  <div id="loading">
+    <div class="load-title">Sky Racer</div>
+    <div class="spinner"></div>
+    <div class="load-status" id="load-status">Initialising…</div>
+  </div>
+
+  <div id="flight-hud">
+    <span id="flight-score">0 rings</span>
+    <span id="flight-alt">0.0m</span>
+  </div>
+
+  <div id="flight-gameover">
+    <h2>Game Over</h2>
+    <p id="flight-go-score">0 rings</p>
+    <p style="color:#475569;font-family:monospace">Press R to restart</p>
+  </div>
+
+  <a id="back-btn" href="/">← Collision Mapper</a>
+
+  <div id="collider-status"></div>
+
+  <script>
+    (function() {
+      var orig = WebAssembly.instantiateStreaming;
+      WebAssembly.instantiateStreaming = async function(source, imports) {
+        var r = await (source instanceof Promise ? source : Promise.resolve(source));
+        var u = r.url || "";
+        if (!u.startsWith("http://") && !u.startsWith("https://")) {
+          try { var b = await r.clone().arrayBuffer(); return WebAssembly.instantiate(b, imports); } catch(e) {}
+        }
+        return orig.call(WebAssembly, r, imports);
+      };
+    })();
+  </script>
+  <script>
+    window.GAME_CONFIG = {
+      title:       'Sky Racer',
+      splatUrl:    null,
+      colliderUrl: null,
+      flipY:       false,
+      floorY:      null,
+      spawnCenter: null,
+      spawnRadius: null,
+    };
+  </script>
+</body>
+</html>

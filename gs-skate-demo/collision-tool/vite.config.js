@@ -34,8 +34,22 @@ async function _fetchSuperSplat(id, outputPlyPath, send) {
   const baseUrl = `https://d28zzqy0iyovbz.cloudfront.net/${id}/v1/`;
   const fileSystem = new UrlReadFileSystem(baseUrl);
 
+  const _origFetch = globalThis.fetch;
+  globalThis.fetch = (url, opts = {}) => {
+    const urlStr = typeof url === 'string' ? url : url?.href ?? '';
+    if (urlStr.includes('cloudfront.net')) {
+      opts = { ...opts, headers: { Referer: 'https://superspl.at/', Origin: 'https://superspl.at', ...opts.headers } };
+    }
+    return _origFetch(url, opts);
+  };
+
   send({ type: 'log', text: 'Downloading & decoding splat components (this may take a minute)…' });
-  const dt = await readSog(fileSystem, 'meta.json');
+  let dt;
+  try {
+    dt = await readSog(fileSystem, 'meta.json');
+  } finally {
+    globalThis.fetch = _origFetch;
+  }
 
   const xCol = dt.columns.find(c => c.name === 'x');
   if (!xCol) throw new Error('DataTable missing x column');

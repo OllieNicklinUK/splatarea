@@ -18,6 +18,7 @@ import {
 } from 'three-mesh-bvh';
 import { generateCollision, isWebGPUAvailable } from './shared/collision/client-collider.js';
 import { createFloorSetup } from './floor-setup.js';
+import { buildSimplifiedCollision } from './simplify-collision.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -31,6 +32,7 @@ export async function initArena({
   config,          // { splatUrl, colliderUrl, flipY, floorY, spawnCenter, spawnRadius }
   game,            // 'fps' | 'people' | 'flight' | 'racing' — used for localStorage key
   hasSpawnArea,    // true if this game uses a spawn-area circle (people mode)
+  skipCollider,    // true = skip voxelization entirely (games with their own physics)
   canvas,          // HTMLCanvasElement
   onStatus,        // (msg: string) => void — progress messages
   onSplatReady,    // ({ scene, camera, renderer, spark, controls, box, floorY, spawnCenter, spawnRadius })
@@ -41,7 +43,7 @@ export async function initArena({
   // ── Three.js ──────────────────────────────────────────────────────────────
   const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
   renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.1;
 
@@ -104,14 +106,12 @@ export async function initArena({
 
         if (box.isEmpty()) box.set(new THREE.Vector3(-10,-5,-10), new THREE.Vector3(10,5,10));
 
-        // If a splat offset is applied, transform the local PLY bounding box to world space.
-        // Rotation (180° around X): X unchanged, Y negated, Z negated. Then add offset.
+        // If a splat offset is applied, translate the local PLY bounding box to world space.
         const { x: ox, y: oy, z: oz } = _splatOffset;
         if (ox !== 0 || oy !== 0 || oz !== 0) {
-          const { min: mn, max: mx } = box;
           box = new THREE.Box3(
-            new THREE.Vector3(mn.x + ox, -mx.y + oy, -mx.z + oz),
-            new THREE.Vector3(mx.x + ox, -mn.y + oy, -mn.z + oz),
+            new THREE.Vector3(box.min.x + ox, box.min.y + oy, box.min.z + oz),
+            new THREE.Vector3(box.max.x + ox, box.max.y + oy, box.max.z + oz),
           );
         }
 
@@ -132,7 +132,8 @@ export async function initArena({
         _setupLoopActive = false;  // hand rendering over to the game's loop
         onSplatReady({ scene, camera, renderer, spark, controls, box, floorY, spawnCenter, spawnRadius, scale });
 
-        // Background collider generation
+        // Background collider generation (skipped for games with their own physics)
+        if (skipCollider) return;
         _startColliderGen({
           config, box, plyUrl, colUrl, scene, onStatus,
           onColliderReady,
@@ -157,7 +158,7 @@ export async function initArena({
     },
   });
 
-  if (config.flipY !== false) splatMesh.quaternion.set(1, 0, 0, 0);
+  // No rotation applied — PLY data is loaded in its native Y-up orientation.
 
   // Read the pre-computed splat offset from localStorage (written by the collision tool
   // or from URL params). Repositions the splat so the floor lands at world Y=0 and the
@@ -168,7 +169,8 @@ export async function initArena({
   let _splatOffset = { x: 0, y: 0, z: 0 };
   try {
     const _saved = JSON.parse(localStorage.getItem(_lsKey));
-    if (_saved?.splatOffsetX != null) {
+    // Ignore saves from older coordinate conventions (pre-v2 used 180°X flip).
+    if (_saved?._v >= 2 && _saved?.splatOffsetX != null) {
       _splatOffset = { x: _saved.splatOffsetX, y: _saved.splatOffsetY, z: _saved.splatOffsetZ };
       splatMesh.position.set(_splatOffset.x, _splatOffset.y, _splatOffset.z);
     }
@@ -262,7 +264,7 @@ async function _startColliderGen({ config, box, plyUrl, colUrl, scene, onStatus,
     onStatus('Loading pre-built collider…');
     try {
       const gltf = await _loadGltf(colUrl);
-      const voxelMesh = _activateCollider(gltf.scene, scene, config.flipY);
+      const voxelMesh = _maybeSimplify(_activateCollider(gltf.scene, scene), scene);
       const detectedFloor = floorY ?? _estimateFloorFromMesh(voxelMesh, box);
       onColliderReady({
         voxelMesh,
@@ -288,7 +290,7 @@ async function _startColliderGen({ config, box, plyUrl, colUrl, scene, onStatus,
       if (probe.ok) {
         onStatus('Loading pre-built collision mesh…');
         const gltf      = await _loadGltf(autoGlb);
-        const voxelMesh = _activateCollider(gltf.scene, scene, config.flipY);
+        const voxelMesh = _maybeSimplify(_activateCollider(gltf.scene, scene), scene);
         const floorY    = center.y - size.y * 0.35;
         onAutoFloor?.(floorY);
         onVoxelMesh?.(voxelMesh);
@@ -312,8 +314,10 @@ async function _startColliderGen({ config, box, plyUrl, colUrl, scene, onStatus,
         const result = await _serverVoxelizeFallback({
           plyUrl, box, config, scene, onStatus, onAutoFloor, onVoxelMesh,
         });
+        const serverMesh = _maybeSimplify(result.voxelMesh, scene);
+        onVoxelMesh?.(serverMesh);
         onColliderReady({
-          voxelMesh:   result.voxelMesh,
+          voxelMesh:   serverMesh,
           floorY:      result.floorY,
           spawnCenter: { x: spawnCx, z: spawnCz },
           spawnRadius: spawnR,
@@ -333,10 +337,8 @@ async function _startColliderGen({ config, box, plyUrl, colUrl, scene, onStatus,
         const maxDim    = Math.max(size.x, size.y, size.z);
         const voxelSize = Math.max(0.3, Math.min(1.5, maxDim / 100));
 
-        // seed: one voxel above the floor in PLY space
-        const flipY = config.flipY !== false;
-        const seedY = flipY ? -(box.min.y + 1.0) : (box.min.y + 1.0);
-        const seed  = [center.x, seedY, flipY ? -center.z : center.z];
+        // seed: one voxel above the floor in PLY Y-up space
+        const seed = [center.x, box.min.y + 1.0, center.z];
 
         const result = await generateCollision({
           plyUrl,
@@ -354,27 +356,25 @@ async function _startColliderGen({ config, box, plyUrl, colUrl, scene, onStatus,
         geo.computeVertexNormals();
 
         // Sink 0.3 m so floor voxels sit under physics floor
-        const ySink = flipY ? 0.3 : -0.3;
         const pa = geo.getAttribute('position');
-        for (let i = 0; i < pa.count; i++) pa.setY(i, pa.getY(i) + ySink);
+        for (let i = 0; i < pa.count; i++) pa.setY(i, pa.getY(i) - 0.3);
 
         const voxelMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
           colorWrite: false, depthWrite: false, side: THREE.DoubleSide,
         }));
-        if (flipY) voxelMesh.quaternion.set(1, 0, 0, 0);
 
         scene.add(voxelMesh);
         voxelMesh.updateMatrixWorld(true);
         _bvhMesh(voxelMesh);
-        onVoxelMesh?.(voxelMesh);
 
-        const worldFloorY = plyFloorY != null
-          ? (flipY ? -plyFloorY : plyFloorY)
-          : center.y - size.y * 0.35;
+        const activeMesh = _maybeSimplify(voxelMesh, scene);
+        onVoxelMesh?.(activeMesh);
+
+        const worldFloorY = plyFloorY ?? (center.y - size.y * 0.35);
         onAutoFloor?.(worldFloorY);
 
         onColliderReady({
-          voxelMesh,
+          voxelMesh:   activeMesh,
           floorY:      worldFloorY,
           spawnCenter: { x: spawnCx, z: spawnCz },
           spawnRadius: spawnR,
@@ -413,8 +413,7 @@ function _fallbackBboxCollider({ box, config, scene, spawnCx, spawnCz, spawnR, o
   onStatus('✓ Bbox walls active (no WebGPU/PLY)');
 }
 
-function _activateCollider(gltfScene, scene, flipY) {
-  if (flipY !== false) gltfScene.quaternion.set(1, 0, 0, 0);
+function _activateCollider(gltfScene, scene) {
   gltfScene.traverse(n => {
     if (n.isMesh) {
       n.material = new THREE.MeshBasicMaterial({
@@ -465,6 +464,24 @@ function _buildBboxWalls(box) {
   return grp;
 }
 
+// When ?sc=1 is in the URL, swap the full voxel mesh for a simplified set of
+// flat planes derived from its face normals. Activates without touching any
+// other code path — remove the param to revert to the full voxel mesh.
+function _maybeSimplify(voxelMesh, scene) {
+  if (!new URLSearchParams(window.location.search).has('sc')) return voxelMesh;
+  try {
+    scene.remove(voxelMesh);
+    const simplified = buildSimplifiedCollision(voxelMesh);
+    scene.add(simplified);
+    simplified.updateMatrixWorld(true);
+    return simplified;
+  } catch (e) {
+    console.warn('[arena-loader] simplify-collision failed, using full mesh:', e);
+    scene.add(voxelMesh); // put it back
+    return voxelMesh;
+  }
+}
+
 function _loadGltf(url) {
   return new Promise((resolve, reject) =>
     _gltfLoader.load(url, resolve, undefined, reject));
@@ -479,14 +496,12 @@ async function _serverVoxelizeFallback({ plyUrl, box, config, scene, onStatus, o
 
   const center  = box.getCenter(new THREE.Vector3());
   const size    = box.getSize(new THREE.Vector3());
-  const flipY   = config.flipY !== false;
   // Start fine (0.10 m) — the server auto-doubles until the grid fits in memory
   const voxSize = 0.10;
 
-  // Seed in PLY-space coordinates — undo the 180° X-rotation Three.js applies (flipY)
   const seedX = center.x;
-  const seedY = flipY ? -(box.min.y + 1.5) : (box.min.y + 1.5);
-  const seedZ = flipY ? -center.z : center.z;
+  const seedY = box.min.y + 1.5;
+  const seedZ = center.z;
 
   const resp = await fetch('/api/gen-collision', {
     method: 'POST',
@@ -520,7 +535,7 @@ async function _serverVoxelizeFallback({ plyUrl, box, config, scene, onStatus, o
   onStatus('Loading collision mesh…');
 
   const gltf      = await _loadGltf(glbUrl);
-  const voxelMesh = _activateCollider(gltf.scene, scene, config.flipY);
+  const voxelMesh = _activateCollider(gltf.scene, scene);
   const floorY    = center.y - size.y * 0.35;
 
   onAutoFloor?.(floorY);

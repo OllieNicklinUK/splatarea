@@ -18,6 +18,7 @@ import {
 } from 'three-mesh-bvh';
 import { generateCollision, isWebGPUAvailable } from './shared/collision/client-collider.js';
 import { createFloorSetup } from './floor-setup.js';
+import { buildSimplifiedCollision } from './simplify-collision.js';
 
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
@@ -262,7 +263,7 @@ async function _startColliderGen({ config, box, plyUrl, colUrl, scene, onStatus,
     onStatus('Loading pre-built collider…');
     try {
       const gltf = await _loadGltf(colUrl);
-      const voxelMesh = _activateCollider(gltf.scene, scene, config.flipY);
+      const voxelMesh = _maybeSimplify(_activateCollider(gltf.scene, scene, config.flipY), scene);
       const detectedFloor = floorY ?? _estimateFloorFromMesh(voxelMesh, box);
       onColliderReady({
         voxelMesh,
@@ -288,7 +289,7 @@ async function _startColliderGen({ config, box, plyUrl, colUrl, scene, onStatus,
       if (probe.ok) {
         onStatus('Loading pre-built collision mesh…');
         const gltf      = await _loadGltf(autoGlb);
-        const voxelMesh = _activateCollider(gltf.scene, scene, config.flipY);
+        const voxelMesh = _maybeSimplify(_activateCollider(gltf.scene, scene, config.flipY), scene);
         const floorY    = center.y - size.y * 0.35;
         onAutoFloor?.(floorY);
         onVoxelMesh?.(voxelMesh);
@@ -312,8 +313,10 @@ async function _startColliderGen({ config, box, plyUrl, colUrl, scene, onStatus,
         const result = await _serverVoxelizeFallback({
           plyUrl, box, config, scene, onStatus, onAutoFloor, onVoxelMesh,
         });
+        const serverMesh = _maybeSimplify(result.voxelMesh, scene);
+        onVoxelMesh?.(serverMesh);
         onColliderReady({
-          voxelMesh:   result.voxelMesh,
+          voxelMesh:   serverMesh,
           floorY:      result.floorY,
           spawnCenter: { x: spawnCx, z: spawnCz },
           spawnRadius: spawnR,
@@ -366,7 +369,9 @@ async function _startColliderGen({ config, box, plyUrl, colUrl, scene, onStatus,
         scene.add(voxelMesh);
         voxelMesh.updateMatrixWorld(true);
         _bvhMesh(voxelMesh);
-        onVoxelMesh?.(voxelMesh);
+
+        const activeMesh = _maybeSimplify(voxelMesh, scene);
+        onVoxelMesh?.(activeMesh);
 
         const worldFloorY = plyFloorY != null
           ? (flipY ? -plyFloorY : plyFloorY)
@@ -374,7 +379,7 @@ async function _startColliderGen({ config, box, plyUrl, colUrl, scene, onStatus,
         onAutoFloor?.(worldFloorY);
 
         onColliderReady({
-          voxelMesh,
+          voxelMesh:   activeMesh,
           floorY:      worldFloorY,
           spawnCenter: { x: spawnCx, z: spawnCz },
           spawnRadius: spawnR,
@@ -463,6 +468,24 @@ function _buildBboxWalls(box) {
   add(t, h, d,   box.min.x - t, cy, cz);             // west wall
   add(t, h, d,   box.max.x + t, cy, cz);             // east wall
   return grp;
+}
+
+// When ?sc=1 is in the URL, swap the full voxel mesh for a simplified set of
+// flat planes derived from its face normals. Activates without touching any
+// other code path — remove the param to revert to the full voxel mesh.
+function _maybeSimplify(voxelMesh, scene) {
+  if (!new URLSearchParams(window.location.search).has('sc')) return voxelMesh;
+  try {
+    scene.remove(voxelMesh);
+    const simplified = buildSimplifiedCollision(voxelMesh);
+    scene.add(simplified);
+    simplified.updateMatrixWorld(true);
+    return simplified;
+  } catch (e) {
+    console.warn('[arena-loader] simplify-collision failed, using full mesh:', e);
+    scene.add(voxelMesh); // put it back
+    return voxelMesh;
+  }
 }
 
 function _loadGltf(url) {

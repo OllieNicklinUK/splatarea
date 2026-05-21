@@ -18,6 +18,8 @@
 
 import fs from 'fs';
 import path from 'path';
+import { execSync } from 'child_process';
+import { tmpdir } from 'os';
 
 // ─── Grid cell types ────────────────────────────────────────────────────────
 const OUTSIDE = 0; // not yet explored / unreachable
@@ -823,16 +825,16 @@ function keepLargestComponent(verts, tris) {
 }
 
 // ─── Mesh Normalisation ──────────────────────────────────────────────────────
-// Translates verts in-place so the main floor sits at PLY Y=0 and the mesh is
-// horizontally centred at PLY (0, 0).  Returns the splat viewer position offset
+// Translates verts in-place so the main floor sits at Y=0 and the mesh is
+// horizontally centred at (0, 0).  Returns the splat viewer position offset
 // needed to keep the Gaussian splat visual aligned with the normalised mesh:
 //
 //   splatMesh.position.set(splatOffsetX, splatOffsetY, splatOffsetZ)
 //
-// Derivation (rotation = 180° around X: Y→-Y, Z→-Z):
-//   world = (px + ox, -py + oy, -pz + oz)
-//   collision needs:   (px - cx, -py + plyFloorY, -pz + cz)
-//   → ox = -cx,  oy = plyFloorY,  oz = +cz
+// Derivation (identity rotation — no flip):
+//   world = (px + ox, py + oy, pz + oz)
+//   collision needs:   (px - cx, py - plyFloorY, pz - cz)
+//   → ox = -cx,  oy = -plyFloorY,  oz = -cz
 function _normalizeMesh(verts, plyFloorY) {
   // Compute XZ bounding box of the surface mesh
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
@@ -849,14 +851,14 @@ function _normalizeMesh(verts, plyFloorY) {
     ys.sort((a, b) => a - b); return ys[Math.floor(ys.length / 2)] || 0;
   })();
 
-  // Translate vertices: floor → PLY Y=0, XZ → centred
+  // Translate vertices: floor → Y=0, XZ → centred
   for (let i = 0; i < verts.length; i += 3) {
     verts[i]   -= cx;
     verts[i+1] -= floorY;
     verts[i+2] -= cz;
   }
 
-  return { splatOffsetX: -cx, splatOffsetY: floorY, splatOffsetZ: cz };
+  return { splatOffsetX: -cx, splatOffsetY: -floorY, splatOffsetZ: -cz };
 }
 
 // ─── GLB Writer ──────────────────────────────────────────────────────────────
@@ -1183,4 +1185,175 @@ export async function voxelizeSog(sogMetaJsonPath, seedPos, voxelSize, outputPat
   writeGLB(verts, tris, outputPath);
   const sizeMB = (fs.statSync(outputPath).size / 1e6).toFixed(2);
   onLog?.(`Written: ${outputPath} (${sizeMB} MB)`);
+}
+
+// ─── Voxel Zip → GLB ─────────────────────────────────────────────────────────
+// Converts a pre-computed .voxel.zip (PlayCanvas sparse-octree format) directly
+// to a collision GLB, bypassing the slow PLY Beer-Lambert voxelization step.
+//
+// Format (version 1.1):
+//   - <name>.voxel.json  — manifest with bounds, voxelResolution, leafSize, treeDepth,
+//                          nodeCount, leafDataCount
+//   - <name>.voxel.bin   — flat binary: nodeCount uint32 nodes + leafDataCount uint32 leafData
+//
+// Node encoding (Laine-Karras sparse octree):
+//   node === 0xFF000000                        → SOLID_LEAF (all voxels in subtree solid)
+//   (node >>> 24) & 0xFF === 0                 → MIXED_LEAF; bitmask = leafData[baseOffset*2 | 1]
+//   (node >>> 24) & 0xFF > 0  (and ≠ SOLID)   → INTERIOR; children at nodes[baseOffset + popcount]
+//
+// seedPos: "x,y,z" string or [x,y,z] array, or null (auto = grid centre).
+export async function voxelZipToGlb(zipPath, outputGlbPath, onLog, seedPos = null) {
+  const extractDir = path.resolve(tmpdir(), `voxelzip-${Date.now().toString(36)}`);
+  fs.mkdirSync(extractDir, { recursive: true });
+  try {
+    onLog?.(`Extracting ${path.basename(zipPath)}…`);
+    execSync(`unzip -o "${zipPath}" -d "${extractDir}"`, { stdio: 'pipe' });
+  } catch (e) {
+    try { fs.rmSync(extractDir, { recursive: true, force: true }); } catch {}
+    throw new Error(`Zip extraction failed: ${e.stderr?.toString()?.trim() || e.message}`);
+  }
+
+  const files   = fs.readdirSync(extractDir);
+  const jsonFile = files.find(f => f.endsWith('.voxel.json'));
+  const binFile  = files.find(f => f.endsWith('.voxel.bin'));
+  if (!jsonFile || !binFile) {
+    try { fs.rmSync(extractDir, { recursive: true, force: true }); } catch {}
+    throw new Error('Zip must contain .voxel.json and .voxel.bin files');
+  }
+
+  const meta    = JSON.parse(fs.readFileSync(path.join(extractDir, jsonFile), 'utf8'));
+  const binBuf  = fs.readFileSync(path.join(extractDir, binFile));
+  try { fs.rmSync(extractDir, { recursive: true, force: true }); } catch {}
+
+  const { nodeCount, leafDataCount, gridBounds, voxelResolution, leafSize, treeDepth } = meta;
+  const expectedBytes = (nodeCount + leafDataCount) * 4;
+  if (binBuf.length !== expectedBytes) {
+    onLog?.(`Warning: binary size ${binBuf.length} ≠ expected ${expectedBytes} — truncated?`);
+  }
+
+  // Create a properly-aligned ArrayBuffer copy (Node Buffer pooling may give non-zero byteOffset)
+  const arrBuf   = binBuf.buffer.slice(binBuf.byteOffset, binBuf.byteOffset + binBuf.byteLength);
+  const nodes    = new Uint32Array(arrBuf, 0, nodeCount);
+  const leafData = new Uint32Array(arrBuf, nodeCount * 4, Math.min(leafDataCount, (arrBuf.byteLength - nodeCount * 4) / 4));
+
+  const blockSize = leafSize * voxelResolution; // world-space size of one leaf block
+  const gridMinX = gridBounds.min[0], gridMinY = gridBounds.min[1], gridMinZ = gridBounds.min[2];
+  const gridMaxX = gridBounds.max[0], gridMaxY = gridBounds.max[1], gridMaxZ = gridBounds.max[2];
+
+  const nbx = Math.round((gridMaxX - gridMinX) / blockSize);
+  const nby = Math.round((gridMaxY - gridMinY) / blockSize);
+  const nbz = Math.round((gridMaxZ - gridMinZ) / blockSize);
+  const totalBlocks = nbx * nby * nbz;
+
+  onLog?.(`Block grid: ${nbx}×${nby}×${nbz} = ${totalBlocks.toLocaleString()} blocks (blockSize=${blockSize}m, depth=${treeDepth})`);
+  if (totalBlocks > 50_000_000) throw new Error(`Grid too large: ${nbx}×${nby}×${nbz}`);
+
+  const grid = new Uint8Array(totalBlocks);
+
+  // Decode octree path (morton code accumulated as morton*8+oct) back to block coords
+  function mortonToXYZ(m, depth) {
+    let x = 0, y = 0, z = 0;
+    for (let i = 0; i < depth; i++) {
+      const bits = (m >>> (3 * i)) & 7;
+      x |= ((bits & 1) << i);
+      y |= (((bits >> 1) & 1) << i);
+      z |= (((bits >> 2) & 1) << i);
+    }
+    return [x, y, z];
+  }
+
+  function markRegionSolid(bx0, by0, bz0, size) {
+    const bxEnd = Math.min(bx0 + size, nbx);
+    const byEnd = Math.min(by0 + size, nby);
+    const bzEnd = Math.min(bz0 + size, nbz);
+    for (let bz = bz0; bz < bzEnd; bz++) {
+      for (let by = by0; by < byEnd; by++) {
+        for (let bx = bx0; bx < bxEnd; bx++) {
+          grid[bx + by * nbx + bz * nbx * nby] = SOLID;
+        }
+      }
+    }
+  }
+
+  const SOLID_LEAF_MARKER = (0xFF000000) >>> 0;
+  const stack = [{ nodeIdx: 0, morton: 0, depth: 0 }];
+  let solidBlocks = 0;
+
+  while (stack.length > 0) {
+    const { nodeIdx, morton, depth } = stack.pop();
+    const node = nodes[nodeIdx] >>> 0;
+
+    if (node === SOLID_LEAF_MARKER) {
+      const scale = 1 << (treeDepth - depth);
+      const [bx, by, bz] = mortonToXYZ(morton, depth);
+      markRegionSolid(bx * scale, by * scale, bz * scale, scale);
+      solidBlocks += scale * scale * scale;
+      continue;
+    }
+
+    const childMask  = (node >>> 24) & 0xFF;
+    const baseOffset = node & 0x00FFFFFF;
+
+    if (childMask === 0x00) {
+      // MIXED LEAF — lo|hi is the 64-bit voxel bitmask for this 4×4×4 block
+      const lo = leafData[baseOffset * 2]     >>> 0;
+      const hi = leafData[baseOffset * 2 + 1] >>> 0;
+      if (lo !== 0 || hi !== 0) {
+        const [bx, by, bz] = mortonToXYZ(morton, depth);
+        if (bx < nbx && by < nby && bz < nbz) {
+          const idx = bx + by * nbx + bz * nbx * nby;
+          if (grid[idx] !== SOLID) { grid[idx] = SOLID; solidBlocks++; }
+        }
+      }
+      continue;
+    }
+
+    // INTERIOR — push present children
+    let off = 0;
+    for (let oct = 0; oct < 8; oct++) {
+      if (childMask & (1 << oct)) {
+        stack.push({ nodeIdx: baseOffset + off, morton: morton * 8 + oct, depth: depth + 1 });
+        off++;
+      }
+    }
+  }
+
+  onLog?.(`Octree walk complete: ${solidBlocks.toLocaleString()} solid blocks`);
+
+  const seed = seedPos
+    ? (typeof seedPos === 'string' ? seedPos.split(',').map(Number) : seedPos)
+    : [(gridMinX + gridMaxX) / 2, gridMinY + (gridMaxY - gridMinY) * 0.6, (gridMinZ + gridMaxZ) / 2];
+
+  const gridInfo = { grid, nx: nbx, ny: nby, nz: nbz, minX: gridMinX, minY: gridMinY, minZ: gridMinZ, voxelSize: blockSize };
+
+  const emptyCells = floodFill(gridInfo, seed, onLog);
+  onLog?.(`Flood-fill: ${emptyCells.toLocaleString()} navigable blocks`);
+
+  const { verts: rawVerts, tris: rawTris, plyFloorY } = extractSurface(gridInfo);
+  onLog?.(`Surface: ${rawVerts.length / 3} vertices, ${rawTris.length / 3} triangles`);
+  if (plyFloorY != null) onLog?.(`Floor Y: ${plyFloorY.toFixed(3)}`);
+
+  if (rawTris.length === 0) throw new Error('Surface mesh is empty — all blocks may be solid or seed position is unreachable');
+
+  onLog?.('Merging vertices…');
+  const { verts: mergedVerts, tris: mergedTris } = mergeVertices(rawVerts, rawTris);
+
+  onLog?.('Taubin smoothing (10 iterations)…');
+  const smoothedVerts = smoothMesh(mergedVerts, mergedTris, 0.5, -0.53, 10);
+
+  onLog?.('Decimating…');
+  const { verts: decVerts, tris: decTris } = decimateMesh(smoothedVerts, mergedTris, blockSize * 3.5);
+  onLog?.(`After decimation: ${decVerts.length / 3} vertices, ${decTris.length / 3} triangles`);
+
+  const { verts: compVerts, tris: compTris } = keepLargestComponent(decVerts, decTris);
+  onLog?.(`After component filter: ${compVerts.length / 3} vertices, ${compTris.length / 3} triangles`);
+
+  const splatOffset = _normalizeMesh(compVerts, plyFloorY);
+  onLog?.(`Normalised — splatOffset: (${splatOffset.splatOffsetX.toFixed(2)}, ${splatOffset.splatOffsetY.toFixed(2)}, ${splatOffset.splatOffsetZ.toFixed(2)})`);
+
+  writeGLB(compVerts, compTris, outputGlbPath);
+  const sizeMB = (fs.statSync(outputGlbPath).size / 1e6).toFixed(2);
+  onLog?.(`Written: ${outputGlbPath} (${sizeMB} MB)`);
+
+  return { plyFloorY: 0, ...splatOffset };
 }

@@ -73,11 +73,14 @@ export default defineConfig({
 
           const publicRoot = resolve(__dirname, 'public');
           const linkPath   = resolve(publicRoot, plyUrl.replace(/^\//, ''));
-          let realPly;
-          try { realPly = fs.realpathSync(linkPath); }
+          let realInput;
+          try { realInput = fs.realpathSync(linkPath); }
           catch (e) { send({ type: 'error', text: `Cannot resolve ${plyUrl}: ${e.message}` }); res.end(); return; }
 
-          const relNoExt = plyUrl.replace(/^\//, '').replace(/\.ply$/i, '');
+          const isSog    = /\.sog$/i.test(plyUrl) || plyUrl.endsWith('meta.json');
+          const relNoExt = plyUrl.replace(/^\//, '')
+            .replace(/\/meta\.json$/i, '')  // /scene/meta.json → scene dir
+            .replace(/\.(ply|sog)$/i, '');
           const outDir   = resolve(publicRoot, relNoExt.split('/').slice(0, -1).join('/'));
           const baseName = relNoExt.split('/').pop();
           const glbOut   = resolve(outDir, `${baseName}.collision.glb`);
@@ -87,12 +90,17 @@ export default defineConfig({
           fs.mkdirSync(outDir, { recursive: true });
 
           const seed = [seedX, seedY, seedZ].map(v => Number(v).toFixed(4)).join(',');
-          send({ type: 'log', text: 'Falling back to Node.js voxelizer…' });
+          send({ type: 'log', text: `Falling back to Node.js voxelizer (${isSog ? 'SOG' : 'PLY'})…` });
           try {
-            const { voxelizePly } = await import('./scripts/ply-voxelizer.mjs');
             const voxelSize = parseFloat(voxelFloor) || 0.1;
             const opThresh  = parseFloat(opacityThreshold) || 0.2;
-            await voxelizePly(realPly, seed, voxelSize, glbOut, (t) => send({ type: 'log', text: t }), opThresh);
+            if (isSog) {
+              const { voxelizeSog } = await import('./scripts/ply-voxelizer.mjs');
+              await voxelizeSog(realInput, seed, voxelSize, glbOut, (t) => send({ type: 'log', text: t }), opThresh);
+            } else {
+              const { voxelizePly } = await import('./scripts/ply-voxelizer.mjs');
+              await voxelizePly(realInput, seed, voxelSize, glbOut, (t) => send({ type: 'log', text: t }), opThresh);
+            }
             send({ type: 'done', url: glbUrl });
           } catch (e) {
             send({ type: 'error', text: `Voxelizer failed: ${e.message}` });

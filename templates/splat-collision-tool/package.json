@@ -14,6 +14,7 @@
     "three": "^0.184.0"
   },
   "devDependencies": {
-    "vite": "^5.0.8"
+    "vite": "^5.0.8",
+    "vite-plugin-static-copy": "^4.1.0"
   }
 }

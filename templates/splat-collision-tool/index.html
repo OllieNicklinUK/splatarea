@@ -122,6 +122,18 @@
     .btn-play:hover:not(:disabled) { background: #388bfd; }
     .btn-play:disabled { opacity: .3; cursor: default; }
 
+    .btn-play-alt {
+      background: #161b22; color: #8b949e; font-size: 12px;
+      padding: 8px 10px; border: 1px solid #30363d; letter-spacing: 0.02em;
+    }
+    .btn-play-alt:hover:not(:disabled) { background: #21262d; border-color: #8b949e; color: #c9d1d9; }
+    .btn-play-alt:disabled { opacity: .3; cursor: default; }
+
+    .btn-save { background: #3d1f00; color: #f97316; font-size: 12px;
+      padding: 8px 10px; border: 1px solid #7c3d00; letter-spacing: 0.02em; }
+    .btn-save:hover:not(:disabled) { background: #5a2e00; border-color: #f97316; color: #ffb084; }
+    .btn-save:disabled { opacity: .3; cursor: default; }
+
     /* ── Viewport ── */
     #viewport-wrap {
       flex: 1; display: flex; flex-direction: column;
@@ -171,6 +183,10 @@
         <div class="dz-icon">📂</div>
         <div class="dz-label">Drop a .ply file here<br>or click to browse</div>
       </div>
+      <div id="zip-row" style="display:none;margin-top:6px;font-size:10px;color:#58a6ff;background:#0d1f35;padding:5px 8px;border-radius:4px;border:1px solid #1f4b7a;align-items:center;gap:6px;">
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">⚡ <span id="zip-name"></span></span>
+        <button id="clear-zip-btn" style="background:transparent;border:none;color:#8b949e;cursor:pointer;font-size:13px;padding:0 2px;line-height:1;" title="Remove zip">×</button>
+      </div>
       <div style="margin-top:8px;font-size:9px;color:#8b949e;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:4px;">Or load from URL</div>
       <div style="display:flex;gap:4px;">
         <input type="text" id="url-input" placeholder="superspl.at/s?id=… or direct .ply URL"
@@ -190,13 +206,36 @@
     <hr class="divider">
 
     <div>
+      <div class="section-title">Splat Flip</div>
+      <div class="row">
+        <label>Flip X</label>
+        <input type="checkbox" id="flip-x">
+      </div>
+      <div class="row">
+        <label>Flip Y</label>
+        <input type="checkbox" id="flip-y">
+      </div>
+      <div class="row">
+        <label>Flip Z</label>
+        <input type="checkbox" id="flip-z">
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div>
       <div class="section-title">Collision Mesh</div>
       <button class="btn btn-green" id="generate-btn" disabled>Generate Collision</button>
+      <button class="btn btn-dim" id="zip-load-btn" style="margin-top:5px;font-size:10px;">⚡ Load voxel.zip (fast)</button>
       <button class="btn btn-dim"   id="clear-btn"    disabled>Clear Mesh</button>
 
       <div class="row" style="margin-top:12px;">
         <label>Show overlay</label>
         <input type="checkbox" id="show-mesh" checked>
+      </div>
+      <div class="row">
+        <label>View splat</label>
+        <input type="checkbox" id="view-splat" checked>
       </div>
       <div class="row">
         <label>Opacity</label><span class="val" id="opacity-val">65%</span>
@@ -229,7 +268,7 @@
         <input type="number" id="seed-y" value="1.0" min="-20" max="20" step="0.1">
       </div>
       <div style="font-size:10px;color:#3fb950;line-height:1.4;margin-top:4px;">
-        Quality mode always on: 8× dilation + 20-iter Taubin smoothing.
+        Quality mode: 8× dilation + 20-iter Taubin smoothing. Or load a .voxel.zip for instant collision (no voxelization).
       </div>
     </div>
 
@@ -238,8 +277,11 @@
     <div>
       <div class="section-title">Launch</div>
       <button class="btn btn-play" id="play-btn" disabled>▶ Play GS Skate Demo</button>
+      <button class="btn btn-play-alt" id="play-fps-btn" disabled style="margin-top:6px;">▶ FPS Arena</button>
+      <button class="btn btn-play-alt" id="play-people-btn" disabled style="margin-top:4px;">▶ People Park</button>
+      <button class="btn btn-save" id="save-alignment-btn" disabled style="margin-top:8px;">💾 Save Alignment</button>
       <div id="play-hint" style="font-size:10px;color:#8b949e;margin-top:6px;line-height:1.4;display:none">
-        Opens the racing game at 5174 using this PLY + collision mesh
+        Opens the selected game at :5174 using this PLY + collision mesh
       </div>
     </div>
 

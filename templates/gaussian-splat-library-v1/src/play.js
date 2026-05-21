@@ -1066,7 +1066,12 @@ function loadSplat(url, name, file = null) {
 
         // Start collision generation in background (runs regardless of preset override)
         if (isSog) {
-          setFloorStatus('SOG loaded — using bbox boundary (no voxel collision)');
+          if (url && !url.startsWith('blob:')) {
+            _serverUrlCollision(url, box, true, session)
+              .catch(err => { if (_loadSession === session) setFloorStatus(`⚠ ${err.message?.slice(0, 52)}`); });
+          } else {
+            setFloorStatus('⚠ SOG collision needs a server URL — use PLY for local files');
+          }
         } else {
           _generateCollisionBackground(plyUrlOrBuffer, isBuffer, box, true, session)
             .catch(err => { if (_loadSession === session) setFloorStatus(`⚠ ${err.message?.slice(0, 52)}`); });

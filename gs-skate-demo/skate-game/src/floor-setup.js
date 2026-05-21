@@ -30,6 +30,9 @@ export function createFloorSetup({ scene, camera, controls, game }) {
   let _origBox     = null;   // original unscaled bbox from PLY
 
   let _scale       = 1.0;
+  let _flipX       = false;
+  let _flipY       = false;
+  let _flipZ       = false;
   let _floorY      = 0;
   let _spawnX      = 0;
   let _spawnZ      = 0;
@@ -115,12 +118,25 @@ export function createFloorSetup({ scene, camera, controls, game }) {
 
   // ── Scale helpers ─────────────────────────────────────────────────────────
 
+  function _applyFlip() {
+    if (!_splatMesh) return;
+    _splatMesh.scale.set(
+      _scale * (_flipX ? -1 : 1),
+      _scale * (_flipY ? -1 : 1),
+      _scale * (_flipZ ? -1 : 1),
+    );
+  }
+
   function _applyScale(newScale, fromOld) {
     const ratio = newScale / (fromOld ?? _scale);
     _scale  = newScale;
 
     // Scale Three.js objects
-    if (_splatMesh) _splatMesh.scale.setScalar(newScale);
+    if (_splatMesh) _splatMesh.scale.set(
+      newScale * (_flipX ? -1 : 1),
+      newScale * (_flipY ? -1 : 1),
+      newScale * (_flipZ ? -1 : 1),
+    );
     if (_voxelMesh) _voxelMesh.scale.setScalar(newScale);
 
     // Scale all world-space positions proportionally
@@ -278,6 +294,31 @@ export function createFloorSetup({ scene, camera, controls, game }) {
       </div>
 
       <div class="sa-section">
+        <div class="sa-section-title">Splat Flip</div>
+        <div class="sa-row">
+          <span class="sa-label">Flip X</span>
+          <label class="sa-toggle">
+            <input type="checkbox" id="sa-flip-x">
+            <span class="sa-toggle-track"></span>
+          </label>
+        </div>
+        <div class="sa-row">
+          <span class="sa-label">Flip Y</span>
+          <label class="sa-toggle">
+            <input type="checkbox" id="sa-flip-y">
+            <span class="sa-toggle-track"></span>
+          </label>
+        </div>
+        <div class="sa-row">
+          <span class="sa-label">Flip Z</span>
+          <label class="sa-toggle">
+            <input type="checkbox" id="sa-flip-z">
+            <span class="sa-toggle-track"></span>
+          </label>
+        </div>
+      </div>
+
+      <div class="sa-section">
         <div class="sa-section-title">Floor Height</div>
         <div class="sa-row">
           <button class="sa-btn" id="sa-floor-dn">−</button>
@@ -346,6 +387,11 @@ export function createFloorSetup({ scene, camera, controls, game }) {
     q('sa-scale-up').addEventListener('mousedown',  () => _startRepeat('scl', () => _setScale(Math.min(SCALE_MAX, +(_scale + SCALE_STEP).toFixed(2)))));
     q('sa-scale-reset').addEventListener('click',   () => _setScale(1.0));
     document.addEventListener('mouseup', () => { _stopRepeat('scl'); _stopRepeat('flo'); _stopRepeat('spa'); });
+
+    // Splat flip
+    q('sa-flip-x').addEventListener('change', (e) => { _flipX = e.target.checked; _applyFlip(); });
+    q('sa-flip-y').addEventListener('change', (e) => { _flipY = e.target.checked; _applyFlip(); });
+    q('sa-flip-z').addEventListener('change', (e) => { _flipZ = e.target.checked; _applyFlip(); });
 
     // Floor
     q('sa-floor-dn').addEventListener('mousedown',  () => _startRepeat('flo', () => _adjustFloor(-FLOOR_STEP)));
@@ -443,6 +489,9 @@ export function createFloorSetup({ scene, camera, controls, game }) {
     if (q('sa-scale-val')) q('sa-scale-val').textContent = `${_scale.toFixed(2)}×`;
     if (q('sa-floor-val')) q('sa-floor-val').textContent = `${_floorY.toFixed(2)}m`;
     if (q('sa-spawn-val')) q('sa-spawn-val').textContent = `${_spawnRadius.toFixed(1)}m`;
+    if (q('sa-flip-x')) q('sa-flip-x').checked = _flipX;
+    if (q('sa-flip-y')) q('sa-flip-y').checked = _flipY;
+    if (q('sa-flip-z')) q('sa-flip-z').checked = _flipZ;
   }
 
   function _setStatus(msg) {
@@ -538,13 +587,21 @@ export function createFloorSetup({ scene, camera, controls, game }) {
   // ── Confirm ───────────────────────────────────────────────────────────────
 
   function _cfg() {
-    return { floorY: _floorY, spawnX: _spawnX, spawnZ: _spawnZ, spawnRadius: _spawnRadius, scale: _scale };
+    return { floorY: _floorY, spawnX: _spawnX, spawnZ: _spawnZ, spawnRadius: _spawnRadius, scale: _scale, flipX: _flipX, flipY: _flipY, flipZ: _flipZ };
   }
 
   function _confirm(lock) {
-    // Bug fix 1: always write locked:true so show() skips the panel next load
     if (lock) {
-      try { localStorage.setItem(LS_KEY(game, _plyName), JSON.stringify({ ..._cfg(), locked: true })); } catch {}
+      try {
+        // Preserve splatOffset fields written by the game's URL-param init script —
+        // _cfg() covers floor/spawn/scale/flip but not the offset.
+        const existing = JSON.parse(localStorage.getItem(LS_KEY(game, _plyName)) || '{}');
+        const keep = {};
+        if (existing.splatOffsetX != null) keep.splatOffsetX = existing.splatOffsetX;
+        if (existing.splatOffsetY != null) keep.splatOffsetY = existing.splatOffsetY;
+        if (existing.splatOffsetZ != null) keep.splatOffsetZ = existing.splatOffsetZ;
+        localStorage.setItem(LS_KEY(game, _plyName), JSON.stringify({ ..._cfg(), ...keep, locked: true }));
+      } catch {}
     }
     _closeSettings();
     const cfg = _cfg();
@@ -564,7 +621,11 @@ export function createFloorSetup({ scene, camera, controls, game }) {
 
   function setSplatMesh(mesh) {
     _splatMesh = mesh;
-    mesh.scale.setScalar(_scale);
+    mesh.scale.set(
+      _scale * (_flipX ? -1 : 1),
+      _scale * (_flipY ? -1 : 1),
+      _scale * (_flipZ ? -1 : 1),
+    );
   }
 
   function setVoxelMesh(mesh) {
@@ -588,6 +649,9 @@ export function createFloorSetup({ scene, camera, controls, game }) {
 
     // Defaults
     _scale       = 1.0;
+    _flipX       = false;
+    _flipY       = false;
+    _flipZ       = false;
     _floorY      = box.min.y + size.y * 0.15;
     _spawnX      = center.x;
     _spawnZ      = center.z;
@@ -598,12 +662,19 @@ export function createFloorSetup({ scene, camera, controls, game }) {
     try { saved = JSON.parse(localStorage.getItem(LS_KEY(game, _plyName))); } catch {}
     if (saved) {
       if (saved.scale       != null) _scale       = saved.scale;
+      if (saved.flipX       != null) _flipX       = saved.flipX === true;
+      if (saved.flipY       != null) _flipY       = saved.flipY === true;
+      if (saved.flipZ       != null) _flipZ       = saved.flipZ === true;
       if (saved.floorY      != null) _floorY      = saved.floorY;
       if (saved.spawnX      != null) _spawnX      = saved.spawnX;
       if (saved.spawnZ      != null) _spawnZ      = saved.spawnZ;
       if (saved.spawnRadius != null) _spawnRadius = saved.spawnRadius;
-      // Apply saved scale to meshes
-      if (_splatMesh) _splatMesh.scale.setScalar(_scale);
+      // Apply saved scale/flip to splat mesh
+      if (_splatMesh) _splatMesh.scale.set(
+        _scale * (_flipX ? -1 : 1),
+        _scale * (_flipY ? -1 : 1),
+        _scale * (_flipZ ? -1 : 1),
+      );
     }
 
     // If saved AND explicitly locked, skip the panel

@@ -102,7 +102,7 @@
     <span id="racing-hint">WASD drive · Space handbrake</span>
   </div>
 
-  <a id="back-btn" href="http://127.0.0.1:3030">← Collision Mapper</a>
+  <a id="back-btn" href="/">← Collision Mapper</a>
 
   <div id="collider-status"></div>
 
@@ -135,11 +135,15 @@
             ? splatUrl.split('/').pop().split('?')[0]
             : 'uploaded.ply';
           localStorage.setItem('sa-cfg:racing:' + plyName, JSON.stringify({
+            _v:           2,
             floorY:       parseFloat(p.get('floorY')),
             spawnX:       parseFloat(p.get('spawnX')       || '0'),
             spawnZ:       parseFloat(p.get('spawnZ')       || '0'),
             spawnRadius:  parseFloat(p.get('spawnRadius')  || '8'),
             scale:        parseFloat(p.get('scale')        || '1'),
+            flipX:        p.get('flipX') === '1',
+            flipY:        p.get('flipY') === '1',
+            flipZ:        p.get('flipZ') === '1',
             splatOffsetX: parseFloat(p.get('splatOffsetX') || '0'),
             splatOffsetY: parseFloat(p.get('splatOffsetY') || '0'),
             splatOffsetZ: parseFloat(p.get('splatOffsetZ') || '0'),
@@ -158,7 +162,7 @@
       // collision mapper mirrors locally).
       splatUrl:    window._gsSplatUrl || null,
       colliderUrl: null,
-      flipY:       true,
+      flipY:       false,
       floorY:      null,
       spawnCenter: null,
       spawnRadius: null,
